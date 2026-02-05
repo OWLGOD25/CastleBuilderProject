@@ -110,6 +110,14 @@ public:
 	///</summary>
     MeshData CreateQuad(float x, float y, float w, float h, float depth);
 
+	// Tyron was here |
+	//				  |
+	//			      |
+	//               \ /
+	//                v
+	// =======================================================================================
+	// the new primitives which is 6 new shapes to make this happen the rest of the code is in GeometryGenerator
+	// =======================================================================================
 	MeshData CreateCone(float radius, float height, uint32 sliceCount, uint32 stackCount);
 	MeshData CreatePyramid(float width, float height, float depth);
 	MeshData CreateWedge(float width, float height, float depth);

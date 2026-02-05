@@ -13,6 +13,11 @@
  *  @author Hooman Salamat
  */
 
+ // Tyron was here |
+ //				   |
+ //			       |
+ //               \ /
+ //                v
  //***************************************************************************************
  // READ THIS BEFORE PLEASE 
  // the castle layout is controlled by transforms in BuildRenderItems function
@@ -541,6 +546,11 @@ void ShapesApp::BuildShadersAndInputLayout()
 	};
 }
 
+// Tyron was here |
+//				  |
+//			      |
+//               \ /
+//                v
 //=================================================================================================================
 // here I added the shape geometries that is needed to make the castle model
 // the new shapes are: cone, pyramid, wedge, diamond, triangular prism, and torus
@@ -793,6 +803,11 @@ void ShapesApp::BuildFrameResources()
 	}
 }
 
+// Tyron was here |
+//				  |
+//			      |
+//               \ /
+//                v
 //==============================
 // Helper function to create a render item(makes it easier to make the castle with one liner code)
 // also added this code so that we do not have to render each item separately
