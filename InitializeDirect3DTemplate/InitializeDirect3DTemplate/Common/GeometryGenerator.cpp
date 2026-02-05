@@ -4,6 +4,10 @@
 
 #include "GeometryGenerator.h"
 #include <algorithm>
+#include <DirectXMath.h>
+#include <cmath>
+#include <cstdint>
+#include <vector>
 
 using namespace DirectX;
 
@@ -654,4 +658,414 @@ GeometryGenerator::MeshData GeometryGenerator::CreateQuad(float x, float y, floa
 	meshData.Indices32[5] = 3;
 
     return meshData;
+}
+
+// =======================================================================================
+// NEW PRIMITIVES (Assignment Part 1)
+// =======================================================================================
+
+GeometryGenerator::MeshData GeometryGenerator::CreateCone(float radius, float height, uint32 sliceCount, uint32 stackCount)
+{
+	MeshData meshData;
+
+	// Side vertices: stacks from bottom (y=0) to top (y=height).
+	for (uint32 i = 0; i <= stackCount; ++i)
+	{
+		float t = (float)i / (float)stackCount;
+		float y = t * height;
+		float r = radius * (1.0f - t);
+
+		float dTheta = XM_2PI / sliceCount;
+
+		for (uint32 j = 0; j <= sliceCount; ++j)
+		{
+			float theta = j * dTheta;
+
+			float x = r * cosf(theta);
+			float z = r * sinf(theta);
+
+			// Approx cone normal
+			XMVECTOR n = XMVectorSet(x, radius / height, z, 0.0f);
+			n = XMVector3Normalize(n);
+
+			XMFLOAT3 nf;
+			XMStoreFloat3(&nf, n);
+
+			// Tangent around theta
+			XMFLOAT3 tangent(-sinf(theta), 0.0f, cosf(theta));
+
+			float u = (float)j / (float)sliceCount;
+			float v = 1.0f - t;
+
+			meshData.Vertices.push_back(
+				Vertex(x, y, z,
+					nf.x, nf.y, nf.z,
+					tangent.x, tangent.y, tangent.z,
+					u, v)
+			);
+		}
+	}
+
+	// Indices for side
+	uint32 ringVerts = sliceCount + 1;
+	for (uint32 i = 0; i < stackCount; ++i)
+	{
+		for (uint32 j = 0; j < sliceCount; ++j)
+		{
+			uint32 a = i * ringVerts + j;
+			uint32 b = (i + 1) * ringVerts + j;
+			uint32 c = (i + 1) * ringVerts + (j + 1);
+			uint32 d = i * ringVerts + (j + 1);
+
+			meshData.Indices32.push_back(a);
+			meshData.Indices32.push_back(b);
+			meshData.Indices32.push_back(c);
+
+			meshData.Indices32.push_back(a);
+			meshData.Indices32.push_back(c);
+			meshData.Indices32.push_back(d);
+		}
+	}
+
+	// Base cap (y=0)
+	uint32 baseCenterIndex = (uint32)meshData.Vertices.size();
+	meshData.Vertices.push_back(Vertex(
+		0.0f, 0.0f, 0.0f,
+		0.0f, -1.0f, 0.0f,
+		1.0f, 0.0f, 0.0f,
+		0.5f, 0.5f));
+
+	uint32 baseStartIndex = (uint32)meshData.Vertices.size();
+	float dTheta = XM_2PI / sliceCount;
+
+	for (uint32 i = 0; i <= sliceCount; ++i)
+	{
+		float theta = i * dTheta;
+		float x = radius * cosf(theta);
+		float z = radius * sinf(theta);
+
+		float u = 0.5f + x / (2.0f * radius);
+		float v = 0.5f - z / (2.0f * radius);
+
+		meshData.Vertices.push_back(Vertex(
+			x, 0.0f, z,
+			0.0f, -1.0f, 0.0f,
+			1.0f, 0.0f, 0.0f,
+			u, v));
+	}
+
+	for (uint32 i = 0; i < sliceCount; ++i)
+	{
+		// Winding so normal points downward
+		meshData.Indices32.push_back(baseCenterIndex);
+		meshData.Indices32.push_back(baseStartIndex + i + 1);
+		meshData.Indices32.push_back(baseStartIndex + i);
+	}
+
+	return meshData;
+}
+
+GeometryGenerator::MeshData GeometryGenerator::CreatePyramid(float width, float height, float depth)
+{
+	MeshData meshData;
+
+	float w2 = 0.5f * width;
+	float d2 = 0.5f * depth;
+
+	XMFLOAT3 p0(-w2, 0.0f, -d2);
+	XMFLOAT3 p1(+w2, 0.0f, -d2);
+	XMFLOAT3 p2(+w2, 0.0f, +d2);
+	XMFLOAT3 p3(-w2, 0.0f, +d2);
+	XMFLOAT3 apex(0.0f, height, 0.0f);
+
+	auto AddTriFlat = [&](const XMFLOAT3& a, const XMFLOAT3& b, const XMFLOAT3& c)
+		{
+			XMVECTOR A = XMLoadFloat3(&a);
+			XMVECTOR B = XMLoadFloat3(&b);
+			XMVECTOR C = XMLoadFloat3(&c);
+
+			XMVECTOR n = XMVector3Normalize(XMVector3Cross(B - A, C - A));
+			XMFLOAT3 nf; XMStoreFloat3(&nf, n);
+
+			// Tangent can be anything consistent for now
+			XMFLOAT3 t(1.0f, 0.0f, 0.0f);
+
+			uint32 start = (uint32)meshData.Vertices.size();
+			meshData.Vertices.push_back(Vertex(a.x, a.y, a.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0.0f, 1.0f));
+			meshData.Vertices.push_back(Vertex(b.x, b.y, b.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0.5f, 0.0f));
+			meshData.Vertices.push_back(Vertex(c.x, c.y, c.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 1.0f, 1.0f));
+
+			meshData.Indices32.push_back(start + 0);
+			meshData.Indices32.push_back(start + 1);
+			meshData.Indices32.push_back(start + 2);
+		};
+
+	// 4 side faces
+	AddTriFlat(p0, p1, apex);
+	AddTriFlat(p1, p2, apex);
+	AddTriFlat(p2, p3, apex);
+	AddTriFlat(p3, p0, apex);
+
+	// Base (two triangles, normal down)
+	uint32 base = (uint32)meshData.Vertices.size();
+	meshData.Vertices.push_back(Vertex(p0.x, p0.y, p0.z, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f));
+	meshData.Vertices.push_back(Vertex(p1.x, p1.y, p1.z, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f));
+	meshData.Vertices.push_back(Vertex(p2.x, p2.y, p2.z, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f));
+	meshData.Vertices.push_back(Vertex(p3.x, p3.y, p3.z, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+
+	meshData.Indices32.push_back(base + 0);
+	meshData.Indices32.push_back(base + 2);
+	meshData.Indices32.push_back(base + 1);
+
+	meshData.Indices32.push_back(base + 0);
+	meshData.Indices32.push_back(base + 3);
+	meshData.Indices32.push_back(base + 2);
+
+	return meshData;
+}
+
+GeometryGenerator::MeshData GeometryGenerator::CreateWedge(float width, float height, float depth)
+{
+	MeshData meshData;
+
+	float w2 = 0.5f * width;
+	float d2 = 0.5f * depth;
+
+	// Bottom rectangle
+	XMFLOAT3 b0(-w2, 0.0f, -d2);
+	XMFLOAT3 b1(+w2, 0.0f, -d2);
+	XMFLOAT3 b2(+w2, 0.0f, +d2);
+	XMFLOAT3 b3(-w2, 0.0f, +d2);
+
+	// Top is sloped: front is tall, back is shorter
+	XMFLOAT3 t0(-w2, height, -d2);
+	XMFLOAT3 t1(+w2, height, -d2);
+	XMFLOAT3 t2(+w2, 0.5f * height, +d2);
+	XMFLOAT3 t3(-w2, 0.5f * height, +d2);
+
+	auto AddQuadFlat = [&](const XMFLOAT3& a, const XMFLOAT3& b, const XMFLOAT3& c, const XMFLOAT3& d)
+		{
+			XMVECTOR A = XMLoadFloat3(&a);
+			XMVECTOR B = XMLoadFloat3(&b);
+			XMVECTOR C = XMLoadFloat3(&c);
+
+			XMVECTOR n = XMVector3Normalize(XMVector3Cross(B - A, C - A));
+			XMFLOAT3 nf; XMStoreFloat3(&nf, n);
+
+			XMFLOAT3 t(1, 0, 0);
+
+			uint32 start = (uint32)meshData.Vertices.size();
+			meshData.Vertices.push_back(Vertex(a.x, a.y, a.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0, 1));
+			meshData.Vertices.push_back(Vertex(b.x, b.y, b.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 1, 1));
+			meshData.Vertices.push_back(Vertex(c.x, c.y, c.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 1, 0));
+			meshData.Vertices.push_back(Vertex(d.x, d.y, d.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0, 0));
+
+			meshData.Indices32.push_back(start + 0); meshData.Indices32.push_back(start + 1); meshData.Indices32.push_back(start + 2);
+			meshData.Indices32.push_back(start + 0); meshData.Indices32.push_back(start + 2); meshData.Indices32.push_back(start + 3);
+		};
+
+	// Faces
+	AddQuadFlat(b0, b1, b2, b3);     // bottom
+	AddQuadFlat(t0, t3, t2, t1);     // top (sloped)
+	AddQuadFlat(b0, b1, t1, t0);     // front
+	AddQuadFlat(b3, b2, t2, t3);     // back
+	AddQuadFlat(b0, t0, t3, b3);     // left
+	AddQuadFlat(b1, b2, t2, t1);     // right
+
+	return meshData;
+}
+
+GeometryGenerator::MeshData GeometryGenerator::CreateDiamond(float width, float height, float depth)
+{
+	MeshData meshData;
+
+	float w2 = 0.5f * width;
+	float d2 = 0.5f * depth;
+	float h2 = 0.5f * height;
+
+	XMFLOAT3 top(0.0f, +h2, 0.0f);
+	XMFLOAT3 bot(0.0f, -h2, 0.0f);
+
+	XMFLOAT3 p0(-w2, 0.0f, -d2);
+	XMFLOAT3 p1(+w2, 0.0f, -d2);
+	XMFLOAT3 p2(+w2, 0.0f, +d2);
+	XMFLOAT3 p3(-w2, 0.0f, +d2);
+
+	auto AddTriFlat = [&](const XMFLOAT3& a, const XMFLOAT3& b, const XMFLOAT3& c)
+		{
+			XMVECTOR A = XMLoadFloat3(&a);
+			XMVECTOR B = XMLoadFloat3(&b);
+			XMVECTOR C = XMLoadFloat3(&c);
+
+			XMVECTOR n = XMVector3Normalize(XMVector3Cross(B - A, C - A));
+			XMFLOAT3 nf; XMStoreFloat3(&nf, n);
+
+			XMFLOAT3 t(1, 0, 0);
+
+			uint32 start = (uint32)meshData.Vertices.size();
+			meshData.Vertices.push_back(Vertex(a.x, a.y, a.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0, 1));
+			meshData.Vertices.push_back(Vertex(b.x, b.y, b.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0.5f, 0));
+			meshData.Vertices.push_back(Vertex(c.x, c.y, c.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 1, 1));
+
+			meshData.Indices32.push_back(start + 0);
+			meshData.Indices32.push_back(start + 1);
+			meshData.Indices32.push_back(start + 2);
+		};
+
+	// Top half
+	AddTriFlat(p0, p1, top);
+	AddTriFlat(p1, p2, top);
+	AddTriFlat(p2, p3, top);
+	AddTriFlat(p3, p0, top);
+
+	// Bottom half (flip winding)
+	AddTriFlat(p1, p0, bot);
+	AddTriFlat(p2, p1, bot);
+	AddTriFlat(p3, p2, bot);
+	AddTriFlat(p0, p3, bot);
+
+	return meshData;
+}
+
+GeometryGenerator::MeshData GeometryGenerator::CreateTriangularPrism(float width, float height, float depth)
+{
+	MeshData meshData;
+
+	float w2 = 0.5f * width;
+	float d2 = 0.5f * depth;
+
+	// Triangle (front z=-d2) and (back z=+d2)
+	XMFLOAT3 f0(-w2, 0.0f, -d2);
+	XMFLOAT3 f1(+w2, 0.0f, -d2);
+	XMFLOAT3 f2(0.0f, height, -d2);
+
+	XMFLOAT3 b0(-w2, 0.0f, +d2);
+	XMFLOAT3 b1(+w2, 0.0f, +d2);
+	XMFLOAT3 b2(0.0f, height, +d2);
+
+	auto AddTriFlat = [&](const XMFLOAT3& a, const XMFLOAT3& b, const XMFLOAT3& c)
+		{
+			XMVECTOR A = XMLoadFloat3(&a);
+			XMVECTOR B = XMLoadFloat3(&b);
+			XMVECTOR C = XMLoadFloat3(&c);
+
+			XMVECTOR n = XMVector3Normalize(XMVector3Cross(B - A, C - A));
+			XMFLOAT3 nf; XMStoreFloat3(&nf, n);
+
+			XMFLOAT3 t(1, 0, 0);
+
+			uint32 start = (uint32)meshData.Vertices.size();
+			meshData.Vertices.push_back(Vertex(a.x, a.y, a.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0, 1));
+			meshData.Vertices.push_back(Vertex(b.x, b.y, b.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 1, 1));
+			meshData.Vertices.push_back(Vertex(c.x, c.y, c.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0.5f, 0));
+
+			meshData.Indices32.push_back(start + 0);
+			meshData.Indices32.push_back(start + 1);
+			meshData.Indices32.push_back(start + 2);
+		};
+
+	auto AddQuadFlat = [&](const XMFLOAT3& a, const XMFLOAT3& b, const XMFLOAT3& c, const XMFLOAT3& d)
+		{
+			XMVECTOR A = XMLoadFloat3(&a);
+			XMVECTOR B = XMLoadFloat3(&b);
+			XMVECTOR C = XMLoadFloat3(&c);
+
+			XMVECTOR n = XMVector3Normalize(XMVector3Cross(B - A, C - A));
+			XMFLOAT3 nf; XMStoreFloat3(&nf, n);
+
+			XMFLOAT3 t(1, 0, 0);
+
+			uint32 start = (uint32)meshData.Vertices.size();
+			meshData.Vertices.push_back(Vertex(a.x, a.y, a.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0, 1));
+			meshData.Vertices.push_back(Vertex(b.x, b.y, b.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 1, 1));
+			meshData.Vertices.push_back(Vertex(c.x, c.y, c.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 1, 0));
+			meshData.Vertices.push_back(Vertex(d.x, d.y, d.z, nf.x, nf.y, nf.z, t.x, t.y, t.z, 0, 0));
+
+			meshData.Indices32.push_back(start + 0); meshData.Indices32.push_back(start + 1); meshData.Indices32.push_back(start + 2);
+			meshData.Indices32.push_back(start + 0); meshData.Indices32.push_back(start + 2); meshData.Indices32.push_back(start + 3);
+		};
+
+	// Front and back triangles
+	AddTriFlat(f0, f2, f1);
+	AddTriFlat(b0, b1, b2);
+
+	// 3 rectangular sides
+	AddQuadFlat(f0, f1, b1, b0); // bottom
+	AddQuadFlat(f0, b0, b2, f2); // left
+	AddQuadFlat(f1, f2, b2, b1); // right
+
+	return meshData;
+}
+
+GeometryGenerator::MeshData GeometryGenerator::CreateTorus(float majorRadius, float minorRadius, uint32 sliceCount, uint32 stackCount)
+{
+	MeshData meshData;
+
+	// i: around major circle (theta), j: around tube (phi)
+	for (uint32 i = 0; i <= sliceCount; ++i)
+	{
+		float u = (float)i / (float)sliceCount;
+		float theta = u * XM_2PI;
+
+		float cosT = cosf(theta);
+		float sinT = sinf(theta);
+
+		// Tube center at this theta
+		XMFLOAT3 center(majorRadius * cosT, 0.0f, majorRadius * sinT);
+
+		for (uint32 j = 0; j <= stackCount; ++j)
+		{
+			float v = (float)j / (float)stackCount;
+			float phi = v * XM_2PI;
+
+			float cosP = cosf(phi);
+			float sinP = sinf(phi);
+
+			float xLocal = minorRadius * cosP;
+			float yLocal = minorRadius * sinP;
+
+			float x = (majorRadius + xLocal) * cosT;
+			float y = yLocal;
+			float z = (majorRadius + xLocal) * sinT;
+
+			// Normal = from center to surface point
+			XMFLOAT3 p(x, y, z);
+			XMVECTOR P = XMLoadFloat3(&p);
+			XMVECTOR C = XMLoadFloat3(&center);
+			XMVECTOR n = XMVector3Normalize(P - C);
+
+			XMFLOAT3 nf; XMStoreFloat3(&nf, n);
+
+			// Tangent around theta
+			XMFLOAT3 tangent(-sinT, 0.0f, cosT);
+
+			meshData.Vertices.push_back(Vertex(
+				x, y, z,
+				nf.x, nf.y, nf.z,
+				tangent.x, tangent.y, tangent.z,
+				u, 1.0f - v));
+		}
+	}
+
+	uint32 ring = stackCount + 1;
+	for (uint32 i = 0; i < sliceCount; ++i)
+	{
+		for (uint32 j = 0; j < stackCount; ++j)
+		{
+			uint32 a = i * ring + j;
+			uint32 b = (i + 1) * ring + j;
+			uint32 c = (i + 1) * ring + (j + 1);
+			uint32 d = i * ring + (j + 1);
+
+			meshData.Indices32.push_back(a);
+			meshData.Indices32.push_back(b);
+			meshData.Indices32.push_back(c);
+
+			meshData.Indices32.push_back(a);
+			meshData.Indices32.push_back(c);
+			meshData.Indices32.push_back(d);
+		}
+	}
+
+	return meshData;
 }
