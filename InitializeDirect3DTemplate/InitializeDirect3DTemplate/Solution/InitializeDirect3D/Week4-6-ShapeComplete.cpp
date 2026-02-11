@@ -865,7 +865,7 @@ void ShapesApp::BuildRenderItems()
 				XMMatrixTranslation(x, towerY, z));
 
 			Add("cone",
-				XMMatrixScaling(towerRadius * 1.2f, 2.5f, towerRadius * 1.2f) *
+				XMMatrixScaling(towerRadius * 1.2f, 4.0f, towerRadius * 1.2f) *
 				XMMatrixTranslation(x, towerHeight + 1.2f, z));
 		};
 
@@ -878,9 +878,26 @@ void ShapesApp::BuildRenderItems()
 	float wallHeight = 2.5f;
 	float wallY = wallHeight * 0.5f;
 
+	float wallLen = 16.0f;
+	float gateWidth = 5.0f;
+
+	float sideLen = (wallLen - gateWidth) * 0.5f;
+	float sideOffset = (gateWidth * 0.5f) + (sideLen * 0.5f);
+
+	float battH = 1.0f;
+	float battY = wallHeight + battH * 0.5f;
+
+	float start = -6.0f;
+	float end = 6.0f;
+	float step = 3.0f;
+
 	Add("box",
-		XMMatrixScaling(16, wallHeight, 1) *
-		XMMatrixTranslation(0, wallY, -8));
+		XMMatrixScaling(sideLen, wallHeight, 1) *
+		XMMatrixTranslation(-sideOffset, wallY, -8));
+
+	Add("box",
+		XMMatrixScaling(sideLen, wallHeight, 1) *
+		XMMatrixTranslation(sideOffset, wallY, -8));
 
 	Add("box",
 		XMMatrixScaling(16, wallHeight, 1) *
@@ -908,15 +925,43 @@ void ShapesApp::BuildRenderItems()
 
 	Add("torus",
 		XMMatrixScaling(1.3f, 1.3f, 1.3f) *
-		XMMatrixTranslation(0, 4.5f, -9.5f));
+		XMMatrixTranslation(0, 5.0f, -9.5f));
 
 	// Battlements
-	for (int i = -6; i <= 6; i += 3)
+	float gateClearHalfWidth = gateWidth * 0.5f;
+
+	for (float x = start; x <= end; x += step)
+	{
+		if (fabsf(x) < gateClearHalfWidth) continue;
+
+		Add("triPrism",
+			XMMatrixScaling(1, battH, 1) *
+			XMMatrixTranslation(x, wallHeight, -8.0f));
+	}
+
+	for (float x = start; x <= end; x += step)
 	{
 		Add("triPrism",
-			XMMatrixScaling(1, 1, 1) *
-			XMMatrixTranslation((float)i, wallHeight + 0.6f, -8));
+			XMMatrixScaling(1, battH, 1) *
+			XMMatrixTranslation(x, wallHeight, 8.0f));
 	}
+
+	for (float z = start; z <= end; z += step)
+	{
+		Add("triPrism",
+			XMMatrixScaling(1, battH, 1) *
+			XMMatrixRotationY(XM_PIDIV2) *
+			XMMatrixTranslation(-8.0f, wallHeight, z));
+	}
+
+	for (float z = start; z <= end; z += step)
+	{
+		Add("triPrism",
+			XMMatrixScaling(1, battH, 1) *
+			XMMatrixRotationY(XM_PIDIV2) *
+			XMMatrixTranslation(8.0f, wallHeight, z));
+	}
+
 
 	// Finalize
 	for (auto& e : mAllRitems)
