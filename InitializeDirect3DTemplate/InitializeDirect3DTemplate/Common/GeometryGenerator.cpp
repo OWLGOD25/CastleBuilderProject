@@ -660,8 +660,14 @@ GeometryGenerator::MeshData GeometryGenerator::CreateQuad(float x, float y, floa
     return meshData;
 }
 
+// Tyron was here |
+//				  |
+//			      |
+//               \ /
+//                v
 // =======================================================================================
-// NEW PRIMITIVES (Assignment Part 1)
+// NEW PRIMITIVES
+// this section is the full mesh generation code for new primitives
 // =======================================================================================
 
 GeometryGenerator::MeshData GeometryGenerator::CreateCone(float radius, float height, uint32 sliceCount, uint32 stackCount)

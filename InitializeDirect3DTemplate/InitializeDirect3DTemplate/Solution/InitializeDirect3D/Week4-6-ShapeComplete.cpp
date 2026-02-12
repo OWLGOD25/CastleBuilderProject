@@ -832,6 +832,11 @@ static std::unique_ptr<RenderItem> MakeShapeRitem(
 	return ritem;
 }
 
+// Tyron was here |
+//				  |
+//			      |
+//               \ /
+//                v
 //========================================================================================================
 // changed to make it much easier to read and create the castle.  Instead of creating each render item separately
 // , we can just call this helper function with the appropriate parameters to create each part of the castle.  
