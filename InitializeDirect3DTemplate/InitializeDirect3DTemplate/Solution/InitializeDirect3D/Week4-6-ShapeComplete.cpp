@@ -867,6 +867,10 @@ void ShapesApp::BuildRenderItems()
 			Add("cone",
 				XMMatrixScaling(towerRadius * 1.2f, 4.0f, towerRadius * 1.2f) *
 				XMMatrixTranslation(x, towerHeight + 1.2f, z));
+
+			Add("diamond",
+				XMMatrixScaling(1.2f, 1.2f, 1.2f) *
+				XMMatrixTranslation(x, towerHeight + 7.0f, z));
 		};
 
 	Tower(-8, -8);
