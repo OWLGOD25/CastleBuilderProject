@@ -78,4 +78,7 @@
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Tex.hlsl" />
+  </ItemGroup>
 </Project>

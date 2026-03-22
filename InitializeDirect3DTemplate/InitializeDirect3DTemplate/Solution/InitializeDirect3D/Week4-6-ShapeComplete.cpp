@@ -33,6 +33,9 @@
 #include "FrameResource.h"
 #include "../../Common/DDSTextureLoader.h"
 #include <array>
+#include <filesystem>
+#include <string>
+
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -215,16 +218,16 @@ bool ShapesApp::Initialize()
 // NEW: loads texture files into GPU resources
 void ShapesApp::LoadTextures()
 {
-	auto stoneTex = std::make_unique<Texture>();
-	stoneTex->Name = "stoneTex";
-	stoneTex->Filename = L"Textures/stone.dds";
+	auto stone1Tex = std::make_unique<Texture>();
+	stone1Tex->Name = "stone1Tex";
+	stone1Tex->Filename = L"Textures/stone1.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
 		md3dDevice.Get(),
 		mCommandList.Get(),
-		stoneTex->Filename.c_str(),
-		stoneTex->Resource,
-		stoneTex->UploadHeap));
-	mTextures["stoneTex"] = std::move(stoneTex);
+		stone1Tex->Filename.c_str(),
+		stone1Tex->Resource,
+		stone1Tex->UploadHeap));
+	mTextures["stone1Tex"] = std::move(stone1Tex);
 
 	auto woodTex = std::make_unique<Texture>();
 	woodTex->Name = "woodTex";
@@ -247,6 +250,61 @@ void ShapesApp::LoadTextures()
 		grassTex->Resource,
 		grassTex->UploadHeap));
 	mTextures["grassTex"] = std::move(grassTex);
+
+	auto roofTex = std::make_unique<Texture>();
+	roofTex->Name = "roofTex";
+	roofTex->Filename = L"Textures/roof.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+		md3dDevice.Get(),
+		mCommandList.Get(),
+		roofTex->Filename.c_str(),
+		roofTex->Resource,
+		roofTex->UploadHeap));
+	mTextures["roofTex"] = std::move(roofTex);
+
+	auto towerTex = std::make_unique<Texture>();
+	towerTex->Name = "towerTex";
+	towerTex->Filename = L"Textures/tower.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+		md3dDevice.Get(),
+		mCommandList.Get(),
+		towerTex->Filename.c_str(),
+		towerTex->Resource,
+		towerTex->UploadHeap));
+	mTextures["towerTex"] = std::move(towerTex);
+
+	auto triprismTex = std::make_unique<Texture>();
+	triprismTex->Name = "triprismTex";
+	triprismTex->Filename = L"Textures/triprism.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+		md3dDevice.Get(),
+		mCommandList.Get(),
+		triprismTex->Filename.c_str(),
+		triprismTex->Resource,
+		triprismTex->UploadHeap));
+	mTextures["triprismTex"] = std::move(triprismTex);
+
+	auto torusTex = std::make_unique<Texture>();
+	torusTex->Name = "torusTex";
+	torusTex->Filename = L"Textures/torus.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+		md3dDevice.Get(),
+		mCommandList.Get(),
+		torusTex->Filename.c_str(),
+		torusTex->Resource,
+		torusTex->UploadHeap));
+	mTextures["torusTex"] = std::move(torusTex);
+
+	auto diamondTex = std::make_unique<Texture>();
+	diamondTex->Name = "diamondTex";
+	diamondTex->Filename = L"Textures/diamond.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+		md3dDevice.Get(),
+		mCommandList.Get(),
+		diamondTex->Filename.c_str(),
+		diamondTex->Resource,
+		diamondTex->UploadHeap));
+	mTextures["diamondTex"] = std::move(diamondTex);
 }
 
 void ShapesApp::OnResize()
@@ -315,15 +373,13 @@ void ShapesApp::Draw(const GameTimer& gt)
 	// Specify the buffers we are going to render to.
 	mCommandList->OMSetRenderTargets(1, &CurrentBackBufferView(), true, &DepthStencilView());
 
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get(), mCbvHeap.Get() };
+	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
 	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
-	int passCbvIndex = mPassCbvOffset + mCurrFrameResourceIndex;
-	auto passCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
-	passCbvHandle.Offset(passCbvIndex, mCbvSrvUavDescriptorSize);
-	mCommandList->SetGraphicsRootDescriptorTable(2, passCbvHandle);
+	auto passCB = mCurrFrameResource->PassCB->Resource();
+	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 
 	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
 
@@ -495,9 +551,9 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 
 void ShapesApp::BuildDescriptorHeaps()
 {
-	// NEW: create SRV heap for 3 textures
+	// NEW: create SRV heap for 8 textures
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 3;
+	srvHeapDesc.NumDescriptors = 8;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	srvHeapDesc.NodeMask = 0;
@@ -505,20 +561,25 @@ void ShapesApp::BuildDescriptorHeaps()
 
 	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-	auto stoneTex = mTextures["stoneTex"]->Resource;
+	auto stone1Tex = mTextures["stone1Tex"]->Resource;
 	auto woodTex = mTextures["woodTex"]->Resource;
 	auto grassTex = mTextures["grassTex"]->Resource;
+	auto roofTex = mTextures["roofTex"]->Resource;
+	auto towerTex = mTextures["towerTex"]->Resource;
+	auto triprismTex = mTextures["triprismTex"]->Resource;
+	auto torusTex = mTextures["torusTex"]->Resource;
+	auto diamondTex = mTextures["diamondTex"]->Resource;
 
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = stoneTex->GetDesc().Format;
+	srvDesc.Format = stone1Tex->GetDesc().Format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = stoneTex->GetDesc().MipLevels;
+	srvDesc.Texture2D.MipLevels = stone1Tex->GetDesc().MipLevels;
 	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
 	// stone
-	md3dDevice->CreateShaderResourceView(stoneTex.Get(), &srvDesc, hDescriptor);
+	md3dDevice->CreateShaderResourceView(stone1Tex.Get(), &srvDesc, hDescriptor);
 
 	// wood
 	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
@@ -531,6 +592,36 @@ void ShapesApp::BuildDescriptorHeaps()
 	srvDesc.Format = grassTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = grassTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(grassTex.Get(), &srvDesc, hDescriptor);
+
+	// roof
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+	srvDesc.Format = roofTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = roofTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(roofTex.Get(), &srvDesc, hDescriptor);
+
+	// tower
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+	srvDesc.Format = towerTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = towerTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(towerTex.Get(), &srvDesc, hDescriptor);
+
+	// triPrism
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+	srvDesc.Format = triprismTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = triprismTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(triprismTex.Get(), &srvDesc, hDescriptor);
+
+	// torus
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+	srvDesc.Format = torusTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = torusTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(torusTex.Get(), &srvDesc, hDescriptor);
+
+	// diamond
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+	srvDesc.Format = diamondTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = diamondTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(diamondTex.Get(), &srvDesc, hDescriptor);
 
 	// CBV heap for objects + pass
 	UINT objCount = (UINT)mOpaqueRitems.size();
@@ -643,33 +734,16 @@ std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> ShapesApp::GetStaticSamplers()
 
 void ShapesApp::BuildRootSignature()
 {
-	// Texture SRV table
 	CD3DX12_DESCRIPTOR_RANGE texTable;
 	texTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
-	// Object CBV
-	CD3DX12_DESCRIPTOR_RANGE cbvTable0;
-	cbvTable0.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-
-	// Pass CBV
-	CD3DX12_DESCRIPTOR_RANGE cbvTable1;
-	cbvTable1.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1);
-
 	CD3DX12_ROOT_PARAMETER slotRootParameter[4];
 
-	// slot 0 = texture
 	slotRootParameter[0].InitAsDescriptorTable(1, &texTable, D3D12_SHADER_VISIBILITY_PIXEL);
-
-	// slot 1 = object constants
-	slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable0);
-
-	// slot 2 = pass constants
-	slotRootParameter[2].InitAsDescriptorTable(1, &cbvTable1);
-
-	// slot 3 = material constants
+	slotRootParameter[1].InitAsConstantBufferView(0);
+	slotRootParameter[2].InitAsConstantBufferView(1);
 	slotRootParameter[3].InitAsConstantBufferView(2);
 
-	// Samplers
 	auto staticSamplers = GetStaticSamplers();
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(
@@ -688,9 +762,7 @@ void ShapesApp::BuildRootSignature()
 		errorBlob.GetAddressOf());
 
 	if (errorBlob != nullptr)
-	{
 		::OutputDebugStringA((char*)errorBlob->GetBufferPointer());
-	}
 
 	ThrowIfFailed(hr);
 
@@ -700,11 +772,10 @@ void ShapesApp::BuildRootSignature()
 		serializedRootSig->GetBufferSize(),
 		IID_PPV_ARGS(mRootSignature.GetAddressOf())));
 }
-
 void ShapesApp::BuildShadersAndInputLayout()
 {
-	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shaders\\Tex.hlsl", nullptr, "VS", "vs_5_1");
-	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shaders\\Tex.hlsl", nullptr, "PS", "ps_5_1");
+	mShaders["standardVS"] = d3dUtil::CompileShader(L"Tex.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Tex.hlsl", nullptr, "PS", "ps_5_1");
 
 	// CHANGED: now using position, normal, and UVs for textures
 	mInputLayout =
@@ -920,14 +991,14 @@ void ShapesApp::BuildShapeGeometry()
 // NEW: creates simple materials for the castle
 void ShapesApp::BuildMaterials()
 {
-	auto stone = std::make_unique<Material>();
-	stone->Name = "stone";
-	stone->MatCBIndex = 0;
-	stone->DiffuseSrvHeapIndex = 0;
-	stone->DiffuseAlbedo = XMFLOAT4(1, 1, 1, 1);
-	stone->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
-	stone->Roughness = 0.3f;
-	mMaterials["stone"] = std::move(stone);
+	auto stone1 = std::make_unique<Material>();
+	stone1->Name = "stone1";
+	stone1->MatCBIndex = 0;
+	stone1->DiffuseSrvHeapIndex = 0;
+	stone1->DiffuseAlbedo = XMFLOAT4(1, 1, 1, 1);
+	stone1->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+	stone1->Roughness = 0.3f;
+	mMaterials["stone1"] = std::move(stone1);
 
 	auto wood = std::make_unique<Material>();
 	wood->Name = "wood";
@@ -946,6 +1017,51 @@ void ShapesApp::BuildMaterials()
 	grass->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
 	grass->Roughness = 0.8f;
 	mMaterials["grass"] = std::move(grass);
+
+	auto roof = std::make_unique<Material>();
+	roof->Name = "roof";
+	roof->MatCBIndex = 3;
+	roof->DiffuseSrvHeapIndex = 3;
+	roof->DiffuseAlbedo = XMFLOAT4(1, 1, 1, 1);
+	roof->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+	roof->Roughness = 0.3f;
+	mMaterials["roof"] = std::move(roof);
+
+	auto tower = std::make_unique<Material>();
+	tower->Name = "tower";
+	tower->MatCBIndex = 4;
+	tower->DiffuseSrvHeapIndex = 4;
+	tower->DiffuseAlbedo = XMFLOAT4(1, 1, 1, 1);
+	tower->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+	tower->Roughness = 0.6f;
+	mMaterials["tower"] = std::move(tower);
+
+	auto triprism = std::make_unique<Material>();
+	triprism->Name = "triprism";
+	triprism->MatCBIndex = 5;
+	triprism->DiffuseSrvHeapIndex = 5;
+	triprism->DiffuseAlbedo = XMFLOAT4(1, 1, 1, 1);
+	triprism->FresnelR0 = XMFLOAT3(0.02f, 0.02f, 0.02f);
+	triprism->Roughness = 0.7f;
+	mMaterials["triprism"] = std::move(triprism);
+
+	auto torus = std::make_unique<Material>();
+	torus->Name = "torus";
+	torus->MatCBIndex = 6;
+	torus->DiffuseSrvHeapIndex = 6;
+	torus->DiffuseAlbedo = XMFLOAT4(1, 1, 1, 1);
+	torus->FresnelR0 = XMFLOAT3(0.08f, 0.06f, 0.02f);
+	torus->Roughness = 0.2f;
+	mMaterials["torus"] = std::move(torus);
+
+	auto diamond = std::make_unique<Material>();
+	diamond->Name = "diamond";
+	diamond->MatCBIndex = 7;
+	diamond->DiffuseSrvHeapIndex = 7;
+	diamond->DiffuseAlbedo = XMFLOAT4(1, 1, 1, 1);
+	diamond->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
+	diamond->Roughness = 0.05f;
+	mMaterials["diamond"] = std::move(diamond);
 }
 
 void ShapesApp::BuildPSOs()
@@ -1071,15 +1187,15 @@ void ShapesApp::BuildRenderItems()
 
 	auto Tower = [&](float x, float z)
 		{
-			Add("cylinder", "stone",
+			Add("cylinder", "tower",
 				XMMatrixScaling(towerRadius, towerHeight, towerRadius) *
 				XMMatrixTranslation(x, towerY, z));
 
-			Add("cone", "stone",
+			Add("cone", "roof",
 				XMMatrixScaling(towerRadius * 1.2f, 4.0f, towerRadius * 1.2f) *
 				XMMatrixTranslation(x, towerHeight + 1.2f, z));
 
-			Add("diamond", "stone",
+			Add("diamond", "diamond",
 				XMMatrixScaling(1.2f, 1.2f, 1.2f) *
 				XMMatrixTranslation(x, towerHeight + 7.0f, z));
 		};
@@ -1106,24 +1222,24 @@ void ShapesApp::BuildRenderItems()
 	float end = 6.0f;
 	float step = 3.0f;
 
-	Add("box", "stone",
+	Add("box", "stone1",
 		XMMatrixScaling(sideLen, wallHeight, 1) *
 		XMMatrixTranslation(-sideOffset, wallY, -8));
 
-	Add("box", "stone",
+	Add("box", "stone1",
 		XMMatrixScaling(sideLen, wallHeight, 1) *
 		XMMatrixTranslation(sideOffset, wallY, -8));
 
-	Add("box", "stone",
+	Add("box", "stone1",
 		XMMatrixScaling(16, wallHeight, 1) *
 		XMMatrixTranslation(0, wallY, 8));
 
-	Add("box", "stone",
+	Add("box", "stone1",
 		XMMatrixScaling(16, wallHeight, 1) *
 		XMMatrixRotationY(XM_PIDIV2) *
 		XMMatrixTranslation(-8, wallY, 0));
 
-	Add("box", "stone",
+	Add("box", "stone1",
 		XMMatrixScaling(16, wallHeight, 1) *
 		XMMatrixRotationY(XM_PIDIV2) *
 		XMMatrixTranslation(8, wallY, 0));
@@ -1134,11 +1250,11 @@ void ShapesApp::BuildRenderItems()
 		XMMatrixTranslation(0, 1.5f, -9.2f));
 
 	// === Decorations ===
-	Add("diamond", "stone",
+	Add("diamond", "diamond",
 		XMMatrixScaling(1.5f, 1.5f, 1.5f) *
 		XMMatrixTranslation(0, 5.5f, 0));
 
-	Add("torus", "stone",
+	Add("torus", "torus",
 		XMMatrixScaling(1.3f, 1.3f, 1.3f) *
 		XMMatrixTranslation(0, 5.0f, -9.5f));
 
@@ -1149,21 +1265,21 @@ void ShapesApp::BuildRenderItems()
 	{
 		if (fabsf(x) < gateClearHalfWidth) continue;
 
-		Add("triPrism", "stone",
+		Add("triPrism", "triprism",
 			XMMatrixScaling(1, battH, 1) *
 			XMMatrixTranslation(x, wallHeight, -8.0f));
 	}
 
 	for (float x = start; x <= end; x += step)
 	{
-		Add("triPrism", "stone",
+		Add("triPrism", "triprism",
 			XMMatrixScaling(1, battH, 1) *
 			XMMatrixTranslation(x, wallHeight, 8.0f));
 	}
 
 	for (float z = start; z <= end; z += step)
 	{
-		Add("triPrism", "stone",
+		Add("triPrism", "triprism",
 			XMMatrixScaling(1, battH, 1) *
 			XMMatrixRotationY(XM_PIDIV2) *
 			XMMatrixTranslation(-8.0f, wallHeight, z));
@@ -1171,7 +1287,7 @@ void ShapesApp::BuildRenderItems()
 
 	for (float z = start; z <= end; z += step)
 	{
-		Add("triPrism", "stone",
+		Add("triPrism", "triprism",
 			XMMatrixScaling(1, battH, 1) *
 			XMMatrixRotationY(XM_PIDIV2) *
 			XMMatrixTranslation(8.0f, wallHeight, z));
@@ -1201,9 +1317,8 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
 		// object CBV
-		UINT cbvIndex = mCurrFrameResourceIndex * (UINT)mOpaqueRitems.size() + ri->ObjCBIndex;
-		auto objCbvHandle = CD3DX12_GPU_DESCRIPTOR_HANDLE(mCbvHeap->GetGPUDescriptorHandleForHeapStart());
-		objCbvHandle.Offset(cbvIndex, mCbvSrvUavDescriptorSize);
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress();
+		objCBAddress += ri->ObjCBIndex * objCBByteSize;
 
 		// texture SRV
 		auto tex = CD3DX12_GPU_DESCRIPTOR_HANDLE(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
@@ -1217,7 +1332,7 @@ void ShapesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::v
 		cmdList->SetGraphicsRootDescriptorTable(0, tex);
 
 		// slot 1 = object CB
-		cmdList->SetGraphicsRootDescriptorTable(1, objCbvHandle);
+		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
 
 		// slot 3 = material CB
 		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
