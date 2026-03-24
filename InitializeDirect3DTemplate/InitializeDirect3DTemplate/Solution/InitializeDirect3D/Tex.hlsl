@@ -1,10 +1,10 @@
 Texture2D gDiffuseMap : register(t0);
 
-SamplerState gsamPointWrap        : register(s0);
-SamplerState gsamPointClamp       : register(s1);
-SamplerState gsamLinearWrap       : register(s2);
-SamplerState gsamLinearClamp      : register(s3);
-SamplerState gsamAnisotropicWrap  : register(s4);
+SamplerState gsamPointWrap : register(s0);
+SamplerState gsamPointClamp : register(s1);
+SamplerState gsamLinearWrap : register(s2);
+SamplerState gsamLinearClamp : register(s3);
+SamplerState gsamAnisotropicWrap : register(s4);
 SamplerState gsamAnisotropicClamp : register(s5);
 
 cbuffer cbPerObject : register(b0)
@@ -31,11 +31,19 @@ cbuffer cbPass : register(b1)
     float gDeltaTime;
 };
 
+cbuffer cbMaterial : register(b2)
+{
+    float4 gDiffuseAlbedo;
+    float3 gFresnelR0;
+    float gRoughness;
+    float4x4 gMatTransform;
+};
+
 struct VertexIn
 {
-    float3 PosL  : POSITION;
+    float3 PosL : POSITION;
     float3 NormalL : NORMAL;
-    float2 TexC  : TEXCOORD;
+    float2 TexC : TEXCOORD;
 };
 
 struct VertexOut
@@ -52,6 +60,7 @@ VertexOut VS(VertexIn vin)
     vout.PosH = mul(posW, gViewProj);
 
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
+    texC = mul(texC, gMatTransform);
     vout.TexC = texC.xy;
 
     return vout;
@@ -59,5 +68,6 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
-    return gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
+    float4 texColor = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
+    return texColor * gDiffuseAlbedo;
 }

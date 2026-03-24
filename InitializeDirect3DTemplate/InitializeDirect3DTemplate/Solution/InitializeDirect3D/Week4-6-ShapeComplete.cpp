@@ -84,6 +84,7 @@ private:
 
 	void OnKeyboardInput(const GameTimer& gt);
 	void UpdateCamera(const GameTimer& gt);
+	void AnimateMaterials(const GameTimer& gt);
 	void UpdateObjectCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
@@ -130,6 +131,8 @@ private:
 
 	// Render items divided by PSO.
 	std::vector<RenderItem*> mOpaqueRitems;
+
+	std::vector<RenderItem*> mTransparentRitems;
 
 	PassConstants mMainPassCB;
 
@@ -213,9 +216,11 @@ bool ShapesApp::Initialize()
 }
 
 
-// i can't get this part to work for the life of me -_-
-
-// NEW: loads texture files into GPU resources
+// ============================================================
+// PART 3: WATER TEXTURE LOADING
+// Loads all textures used in the scene, including the water
+// texture used for the transparent animated water plane.
+// ============================================================
 void ShapesApp::LoadTextures()
 {
 	auto stone1Tex = std::make_unique<Texture>();
@@ -305,6 +310,17 @@ void ShapesApp::LoadTextures()
 		diamondTex->Resource,
 		diamondTex->UploadHeap));
 	mTextures["diamondTex"] = std::move(diamondTex);
+
+	auto waterTex = std::make_unique<Texture>();
+	waterTex->Name = "waterTex";
+	waterTex->Filename = L"Textures/water1.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+		md3dDevice.Get(),
+		mCommandList.Get(),
+		waterTex->Filename.c_str(),
+		waterTex->Resource,
+		waterTex->UploadHeap));
+	mTextures["waterTex"] = std::move(waterTex);
 }
 
 void ShapesApp::OnResize()
@@ -335,11 +351,17 @@ void ShapesApp::Update(const GameTimer& gt)
 		CloseHandle(eventHandle);
 	}
 
+	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);   // NEW: update materials too
 	UpdateMainPassCB(gt);
 }
 
+// ============================================================
+// PART 3: WATER RENDER ORDER
+// Opaque objects are drawn first, then the water is drawn
+// using the transparent PSO so blending works correctly.
+// ============================================================
 void ShapesApp::Draw(const GameTimer& gt)
 {
 	auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
@@ -382,6 +404,9 @@ void ShapesApp::Draw(const GameTimer& gt)
 	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
 
 	DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
+
+	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
+	DrawRenderItems(mCommandList.Get(), mTransparentRitems);
 
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -476,6 +501,28 @@ void ShapesApp::UpdateCamera(const GameTimer& gt)
 	XMStoreFloat4x4(&mView, view);
 }
 
+// ============================================================
+// PART 3: WATER ANIMATION
+// Scrolls the water material texture coordinates over time
+// to make the water look like it is moving.
+// ============================================================
+void ShapesApp::AnimateMaterials(const GameTimer& gt)
+{
+	auto waterMat = mMaterials["water"].get();
+
+	// Access correctly using ._41 and ._42 (translation part)
+	float& tu = waterMat->MatTransform._41;
+	float& tv = waterMat->MatTransform._42;
+
+	tu += 0.1f * gt.DeltaTime();
+	tv += 0.02f * gt.DeltaTime();
+
+	if (tu >= 1.0f) tu -= 1.0f;
+	if (tv >= 1.0f) tv -= 1.0f;
+
+	waterMat->NumFramesDirty = gNumFrameResources;
+}
+
 void ShapesApp::UpdateObjectCBs(const GameTimer& gt)
 {
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
@@ -497,7 +544,11 @@ void ShapesApp::UpdateObjectCBs(const GameTimer& gt)
 	}
 }
 
-// NEW: updates material data for the current frame
+// ============================================================
+// PART 3: MATERIAL BUFFER UPDATE
+// Sends updated material data, including the animated water
+// material transform, to the GPU every frame.
+// ============================================================
 void ShapesApp::UpdateMaterialCBs(const GameTimer& gt)
 {
 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
@@ -508,11 +559,13 @@ void ShapesApp::UpdateMaterialCBs(const GameTimer& gt)
 
 		if (mat->NumFramesDirty > 0)
 		{
+			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
+
 			MaterialConstants matConstants;
 			matConstants.DiffuseAlbedo = mat->DiffuseAlbedo;
 			matConstants.FresnelR0 = mat->FresnelR0;
 			matConstants.Roughness = mat->Roughness;
-			matConstants.MatTransform = mat->MatTransform;
+			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
 
 			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
@@ -549,11 +602,18 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
+
+// ============================================================
+// PART 3: WATER TEXTURE SRV SETUP
+// Creates the SRV heap for all scene textures and assigns the
+// water texture to its descriptor slot so it can be sampled
+// by the shader.
+// ============================================================
 void ShapesApp::BuildDescriptorHeaps()
 {
-	// NEW: create SRV heap for 8 textures
+	// NEW: create SRV heap for 9 textures
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 8;
+	srvHeapDesc.NumDescriptors = 9;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	srvHeapDesc.NodeMask = 0;
@@ -622,6 +682,13 @@ void ShapesApp::BuildDescriptorHeaps()
 	srvDesc.Format = diamondTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = diamondTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(diamondTex.Get(), &srvDesc, hDescriptor);
+
+	auto waterTex = mTextures["waterTex"]->Resource;
+
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+	srvDesc.Format = waterTex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = waterTex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(waterTex.Get(), &srvDesc, hDescriptor);
 
 	// CBV heap for objects + pass
 	UINT objCount = (UINT)mOpaqueRitems.size();
@@ -797,6 +864,19 @@ void ShapesApp::BuildShadersAndInputLayout()
 // this part of the code updates with the vertex and index offsets, and packed with vertices into the big combined vertex buffer
 // it also makes sure that we are able to create our shapes
 //=================================================================================================================
+
+
+
+
+
+// ============================================================
+// PART 1: CUSTOM SHAPE GEOMETRY
+// This function creates all base and custom shapes used in the
+// castle scene, including cone, pyramid, wedge, diamond,
+// triangular prism, and torus.
+// It also packs all vertices and indices into one large shared
+// vertex/index buffer and registers each shape in DrawArgs.
+// ============================================================
 void ShapesApp::BuildShapeGeometry()
 {
 	GeometryGenerator geoGen;
@@ -813,6 +893,7 @@ void ShapesApp::BuildShapeGeometry()
 	GeometryGenerator::MeshData diamond = geoGen.CreateDiamond(1.0f, 1.4f, 1.0f);
 	GeometryGenerator::MeshData triPrism = geoGen.CreateTriangularPrism(1.2f, 1.0f, 1.2f);
 	GeometryGenerator::MeshData torus = geoGen.CreateTorus(0.9f, 0.25f, 32, 16);
+	GeometryGenerator::MeshData water = geoGen.CreateGrid(40.0f, 40.0f, 60, 40);
 
 	// ----------------------------
 	// Vertex offsets
@@ -827,6 +908,7 @@ void ShapesApp::BuildShapeGeometry()
 	UINT diamondVertexOffset = wedgeVertexOffset + (UINT)wedge.Vertices.size();
 	UINT triPrismVertexOffset = diamondVertexOffset + (UINT)diamond.Vertices.size();
 	UINT torusVertexOffset = triPrismVertexOffset + (UINT)triPrism.Vertices.size();
+	UINT waterVertexOffset = torusVertexOffset + (UINT)torus.Vertices.size();
 
 	// Index offsets (use Indices32 sizes  but well pack 16-bit later)
 	UINT boxIndexOffset = 0;
@@ -840,6 +922,7 @@ void ShapesApp::BuildShapeGeometry()
 	UINT diamondIndexOffset = wedgeIndexOffset + (UINT)wedge.Indices32.size();
 	UINT triPrismIndexOffset = diamondIndexOffset + (UINT)diamond.Indices32.size();
 	UINT torusIndexOffset = triPrismIndexOffset + (UINT)triPrism.Indices32.size();
+	UINT waterIndexOffset = torusIndexOffset + (UINT)torus.Indices32.size();
 
 	// ----------------------------
 	// Submeshes
@@ -893,6 +976,13 @@ void ShapesApp::BuildShapeGeometry()
 	torusSubmesh.StartIndexLocation = torusIndexOffset;
 	torusSubmesh.BaseVertexLocation = torusVertexOffset;
 
+	// PART 3: Water plane mesh
+	SubmeshGeometry waterSubmesh;
+	waterSubmesh.IndexCount = (UINT)water.Indices32.size();
+	waterSubmesh.StartIndexLocation = waterIndexOffset;
+	waterSubmesh.BaseVertexLocation = waterVertexOffset;
+
+
 	// ----------------------------
 	// Total vertices
 	auto totalVertexCount =
@@ -905,7 +995,8 @@ void ShapesApp::BuildShapeGeometry()
 		wedge.Vertices.size() +
 		diamond.Vertices.size() +
 		triPrism.Vertices.size() +
-		torus.Vertices.size();
+		torus.Vertices.size() +
+		water.Vertices.size();
 
 	std::vector<Vertex> vertices(totalVertexCount);
 
@@ -932,6 +1023,7 @@ void ShapesApp::BuildShapeGeometry()
 	CopyVerts(diamond);
 	CopyVerts(triPrism);
 	CopyVerts(torus);
+	CopyVerts(water);
 
 	// ----------------------------
 	// Indices (16-bit)
@@ -947,6 +1039,7 @@ void ShapesApp::BuildShapeGeometry()
 	indices.insert(indices.end(), std::begin(diamond.GetIndices16()), std::end(diamond.GetIndices16()));
 	indices.insert(indices.end(), std::begin(triPrism.GetIndices16()), std::end(triPrism.GetIndices16()));
 	indices.insert(indices.end(), std::begin(torus.GetIndices16()), std::end(torus.GetIndices16()));
+	indices.insert(indices.end(), std::begin(water.GetIndices16()), std::end(water.GetIndices16()));
 
 	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
@@ -984,11 +1077,17 @@ void ShapesApp::BuildShapeGeometry()
 	geo->DrawArgs["diamond"] = diamondSubmesh;
 	geo->DrawArgs["triPrism"] = triPrismSubmesh;
 	geo->DrawArgs["torus"] = torusSubmesh;
+	geo->DrawArgs["water"] = waterSubmesh;
 
 	mGeometries[geo->Name] = std::move(geo);
 }
 
-// NEW: creates simple materials for the castle
+// ============================================================
+// PART 3: WATER MATERIAL
+// Creates scene materials, including the water material.
+// The alpha value in DiffuseAlbedo controls how transparent
+// the water appears.
+// ============================================================
 void ShapesApp::BuildMaterials()
 {
 	auto stone1 = std::make_unique<Material>();
@@ -1062,13 +1161,26 @@ void ShapesApp::BuildMaterials()
 	diamond->FresnelR0 = XMFLOAT3(0.2f, 0.2f, 0.2f);
 	diamond->Roughness = 0.05f;
 	mMaterials["diamond"] = std::move(diamond);
+
+	auto water = std::make_unique<Material>();
+	water->Name = "water";
+	water->MatCBIndex = 8;
+	water->DiffuseSrvHeapIndex = 8;
+	water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.7f);
+	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	water->Roughness = 0.0f;
+	mMaterials["water"] = std::move(water);
 }
 
+// ============================================================
+// PART 3: TRANSPARENCY PIPELINE STATE
+// Creates the PSOs used for rendering.
+// Includes a transparent PSO for the water plane using
+// alpha blending (SRC_ALPHA, INV_SRC_ALPHA).
+// ============================================================
 void ShapesApp::BuildPSOs()
 {
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
-
-	// PSO for opaque objects.
 
 	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 	opaquePsoDesc.InputLayout = { mInputLayout.data(), (UINT)mInputLayout.size() };
@@ -1076,18 +1188,17 @@ void ShapesApp::BuildPSOs()
 
 	opaquePsoDesc.VS =
 	{
-	 reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
-	 mShaders["standardVS"]->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
+		mShaders["standardVS"]->GetBufferSize()
 	};
 
 	opaquePsoDesc.PS =
 	{
-	 reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
-	 mShaders["opaquePS"]->GetBufferSize()
+		reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+		mShaders["opaquePS"]->GetBufferSize()
 	};
 
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.SampleMask = UINT_MAX;
@@ -1098,13 +1209,39 @@ void ShapesApp::BuildPSOs()
 	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
 
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+	// OPAQUE
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+		&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
 
-	// PSO for opaque wireframe objects.
-
+	// WIREFRAME
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaqueWireframePsoDesc = opaquePsoDesc;
 	opaqueWireframePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
-	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+		&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
+
+	// 🔥 TRANSPARENT (NEW)
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
+
+	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+	transparencyBlendDesc.BlendEnable = true;
+	transparencyBlendDesc.LogicOpEnable = false;
+
+	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+
+	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+
+	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
+
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+		&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
 }
 
 
@@ -1129,6 +1266,16 @@ void ShapesApp::BuildFrameResources()
 // also added this code so that we do not have to render each item separately
 // and make the code very long but now its more efficient and cleaner
 //==============================
+
+
+
+// ============================================================
+// PART 1: RENDER ITEM HELPER
+// Helper function used to turn a shape/submesh into a renderable
+// object with a world transform, material, and object constant
+// buffer index.
+// This makes castle construction cleaner inside BuildRenderItems().
+// ============================================================
 static std::unique_ptr<RenderItem> MakeShapeRitem(
 	MeshGeometry* geo,
 	Material* mat,
@@ -1161,6 +1308,14 @@ static std::unique_ptr<RenderItem> MakeShapeRitem(
 // This makes the code much cleaner and easier to understand.
 //========================================================================================================
 
+
+// ============================================================
+// PART 1: CASTLE CONSTRUCTION
+// This function builds the full castle scene by placing the
+// shapes created in BuildShapeGeometry() into the world.
+// It positions the ground, towers, walls, gate, decorations,
+// battlements, and later also adds the water plane.
+// ============================================================
 void ShapesApp::BuildRenderItems()
 {
 	MeshGeometry* geo = mGeometries["shapeGeo"].get();
@@ -1293,10 +1448,35 @@ void ShapesApp::BuildRenderItems()
 			XMMatrixTranslation(8.0f, wallHeight, z));
 	}
 
+	// ============================================================
+	// PART 3: WATER RENDER ITEM
+	// Creates the water plane using the grid mesh and assigns the
+	// water material. The water is placed slightly below the ground
+	// and added to the transparent render list so it is drawn after
+	// opaque objects for correct blending.
+	// ============================================================
+	mAllRitems.push_back(
+		MakeShapeRitem(
+			geo,
+			mMaterials["water"].get(),
+			"water",
+			objCBIndex++,
+			XMMatrixTranslation(0.0f, -0.02f, 0.0f)   // water height
+		)
+	);
+
+	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(6.0f, 6.0f, 1.0f));
+	mTransparentRitems.push_back(mAllRitems.back().get());
+
 
 	// Finalize
 	for (auto& e : mAllRitems)
+	{
+		if (e->Mat == mMaterials["water"].get())
+			continue;
+
 		mOpaqueRitems.push_back(e.get());
+	}
 }
 
 
