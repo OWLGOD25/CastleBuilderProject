@@ -1295,7 +1295,7 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 	// === Towers ===
 	float towerHeight = 4.0f;
 	float towerRadius = 2.0f;
-	float towerY = towerHeight * 0.5f;s
+	float towerY = towerHeight * 0.5f;
 
 	auto Tower = [&](float x, float z)
 		{
