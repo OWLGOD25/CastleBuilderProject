@@ -205,9 +205,7 @@ bool ShapesApp::Initialize()
 
 
 // ============================================================
-// PART 3: WATER TEXTURE LOADING
-// Loads all textures used in the scene, including the water
-// texture used for the transparent animated water plane.
+// here is to add the textrues
 // ============================================================
 void ShapesApp::LoadTextures()
 {
@@ -1291,6 +1289,33 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 
 	// NEW: repeat the grass texture across the ground
 	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
+
+	// === Trees ===
+	auto AddTree = [&](float x, float z)
+		{
+			float trunkHeight = 2.0f;
+
+			// Trunk
+			Add("cylinder", "wood",
+				XMMatrixScaling(0.3f, trunkHeight, 0.3f) *
+				XMMatrixTranslation(x, trunkHeight * 0.5f, z));
+
+			// Leaves
+			Add("cone", "grass",
+				XMMatrixScaling(1.2f, 2.5f, 1.2f) *
+				XMMatrixTranslation(x, trunkHeight + 1.5f, z));
+		};
+
+	AddTree(-15.0f, -10.0f);
+	AddTree(15.0f, -10.0f);
+	AddTree(-20.0f, 5.0f);
+	AddTree(20.0f, 5.0f);
+	AddTree(0.0f, 20.0f);
+	AddTree(-20.0f, -15.0f);
+	AddTree(20.0f, -15.0f);
+	AddTree(-23.0f, 5.0f);
+	AddTree(25.0f, 5.0f);
+	AddTree(15.0f, 20.0f);
 
 	// === Towers ===
 	float towerHeight = 4.0f;
