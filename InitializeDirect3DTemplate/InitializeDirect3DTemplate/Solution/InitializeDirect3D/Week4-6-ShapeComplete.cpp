@@ -581,10 +581,14 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.EyePosW = mEyePos;
 	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
+	mMainPassCB.gAmbientLight = XMFLOAT4(0.25f, 0.2f, 0.15f, 1.0f);
+	mMainPassCB.gLightDir = XMFLOAT3(-0.6f, -0.7f, 0.3f);
+	mMainPassCB.gLightStrength = XMFLOAT3(1.0f, 0.85f, 0.6f);
 	mMainPassCB.NearZ = 1.0f;
 	mMainPassCB.FarZ = 1000.0f;
 	mMainPassCB.TotalTime = gt.TotalTime();
 	mMainPassCB.DeltaTime = gt.DeltaTime();
+
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
 }
@@ -854,7 +858,7 @@ void ShapesApp::BuildShapeGeometry()
 	GeometryGenerator geoGen;
 
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 0);
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(20.0f, 30.0f, 60, 40);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(50.0f, 50.0f, 60, 80);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
@@ -865,7 +869,7 @@ void ShapesApp::BuildShapeGeometry()
 	GeometryGenerator::MeshData diamond = geoGen.CreateDiamond(1.0f, 1.4f, 1.0f);
 	GeometryGenerator::MeshData triPrism = geoGen.CreateTriangularPrism(1.2f, 1.0f, 1.2f);
 	GeometryGenerator::MeshData torus = geoGen.CreateTorus(0.9f, 0.25f, 32, 16);
-	GeometryGenerator::MeshData water = geoGen.CreateGrid(40.0f, 40.0f, 60, 40);
+	GeometryGenerator::MeshData water = geoGen.CreateGrid(80.0f, 80.0f, 60, 40);
 
 	// ----------------------------
 	// Vertex offsets
@@ -1192,7 +1196,7 @@ void ShapesApp::BuildPSOs()
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
 		&opaqueWireframePsoDesc, IID_PPV_ARGS(&mPSOs["opaque_wireframe"])));
 
-	// 🔥 TRANSPARENT (NEW)
+	// TRANSPARENT
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
 
 	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
@@ -1279,17 +1283,11 @@ void ShapesApp::BuildRenderItems()
 		};
 
 	// Ground
-	Add("grid", "grass", XMMatrixIdentity());
+	Add("grid", "grass", XMMatrixTranslation(0.0f, -2.4f, 0.0f));
 
 	// Hill base under castle (gives elevation)
 Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0.0f, -2.0f, 0.0f));
 
-// NEW: Rock formations (fake terrain depth)
-Add("box", "stone1", XMMatrixScaling(6, 4, 6) * XMMatrixTranslation(6, 0.0f, 5));
-
-Add("box", "stone1", XMMatrixScaling(5, 3, 5) * XMMatrixTranslation(-6, -0.5f, -4));
-
-Add("box", "stone1", XMMatrixScaling(4, 2, 4) * XMMatrixTranslation(3, -1.0f, -6));
 
 	// NEW: repeat the grass texture across the ground
 	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
@@ -1297,7 +1295,7 @@ Add("box", "stone1", XMMatrixScaling(4, 2, 4) * XMMatrixTranslation(3, -1.0f, -6
 	// === Towers ===
 	float towerHeight = 4.0f;
 	float towerRadius = 2.0f;
-	float towerY = towerHeight * 0.5f + 2.0f;
+	float towerY = towerHeight * 0.5f;s
 
 	auto Tower = [&](float x, float z)
 		{
@@ -1320,8 +1318,8 @@ Add("box", "stone1", XMMatrixScaling(4, 2, 4) * XMMatrixTranslation(3, -1.0f, -6
 	Tower(-8, 8);
 
 	// === Walls ===
-	float wallHeight = 2.5f;
-	float wallY = wallHeight * 0.5f + 2.0f;
+	float wallHeight = 3.0f;
+	float wallY = wallHeight * 0.5f;
 
 	float wallLen = 16.0f;
 	float gateWidth = 5.0f;
@@ -1361,21 +1359,25 @@ Add("box", "stone1", XMMatrixScaling(4, 2, 4) * XMMatrixTranslation(3, -1.0f, -6
 	// === Gate ===
 	Add("wedge", "wood",
 		XMMatrixScaling(4, 3, 2) *
+	    XMMatrixTranslation(0, 0.5f, -8.2f));
+
+	Add("wedge", "wood",
+		XMMatrixScaling(4, 3, 2) *
 		XMMatrixRotationY(XM_PI) *
-		XMMatrixTranslation(0, 3.5f, -9.2f));
+		XMMatrixTranslation(0, 0.5f, -8.2f));
 
 	// Bridge leading to gate
 	for (int i = 0; i < 12; i++)
 	{
 		Add("box", "stone1",
 			XMMatrixScaling(3.0f, 0.5f, 2.0f) *
-			XMMatrixTranslation(0.0f, 2.2f, -11.0f - i * 2.0f));
+			XMMatrixTranslation(0.0f, 0.5f, -9.0f - i * 2.0f));
 	}
 
 	// === Decorations ===
 	Add("diamond", "diamond",
 		XMMatrixScaling(1.5f, 1.5f, 1.5f) *
-		XMMatrixTranslation(0, 5.5f, 0));
+		XMMatrixTranslation(0, 7.5f, 0));
 
 	Add("torus", "torus",
 		XMMatrixScaling(1.3f, 1.3f, 1.3f) *

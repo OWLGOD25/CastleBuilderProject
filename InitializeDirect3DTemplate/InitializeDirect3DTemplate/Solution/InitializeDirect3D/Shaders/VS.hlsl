@@ -1,9 +1,3 @@
-
-//step13:our per object constant buffer only stores constants that are associated with an object.
-//Our passing buffer stores constant data that is fixed over a given
-//rendering pass such as the eye position, the view and projection matrices, and information
-//about the screen(render target) dimensions; it also includes game timing information
-
 cbuffer cbPerObject : register(b0)
 {
 	float4x4 gWorld;
@@ -29,27 +23,27 @@ cbuffer cbPass : register(b1)
 
 struct VertexIn
 {
-	float3 PosL  : POSITION;
-	float4 Color : COLOR;
+	float3 PosL   : POSITION;
+	float3 Normal : NORMAL;
+	float4 Color  : COLOR;
 };
 
 struct VertexOut
 {
-	float4 PosH  : SV_POSITION;
-	float4 Color : COLOR;
+	float4 PosH   : SV_POSITION;
+	float4 Color  : COLOR;
+	float3 Normal : NORMAL;
 };
 
 VertexOut VS(VertexIn vin)
 {
 	VertexOut vout;
 
-	////step14
-	// Transform to homogeneous clip space.
 	float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
 	vout.PosH = mul(posW, gViewProj);
 
-	// Just pass vertex color into the pixel shader.
 	vout.Color = vin.Color;
+	vout.Normal = vin.Normal;
 
 	return vout;
 }

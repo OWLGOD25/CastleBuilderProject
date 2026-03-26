@@ -28,6 +28,13 @@ struct PassConstants
     float FarZ = 0.0f;
     float TotalTime = 0.0f;
     float DeltaTime = 0.0f;
+    DirectX::XMFLOAT4 gAmbientLight;
+
+    DirectX::XMFLOAT3 gLightDir;
+    float pad1;
+
+    DirectX::XMFLOAT3 gLightStrength;
+    float pad2;
 };
 
 // vertex data

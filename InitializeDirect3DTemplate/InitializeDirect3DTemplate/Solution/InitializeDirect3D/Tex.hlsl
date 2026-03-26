@@ -7,12 +7,9 @@ SamplerState gsamLinearClamp : register(s3);
 SamplerState gsamAnisotropicWrap : register(s4);
 SamplerState gsamAnisotropicClamp : register(s5);
 
-cbuffer cbPerObject : register(b0)
-{
-    float4x4 gWorld;
-    float4x4 gTexTransform;
-};
-
+// ==========================
+// PASS CONSTANTS (ONLY ONE)
+// ==========================
 cbuffer cbPass : register(b1)
 {
     float4x4 gView;
@@ -21,14 +18,33 @@ cbuffer cbPass : register(b1)
     float4x4 gInvProj;
     float4x4 gViewProj;
     float4x4 gInvViewProj;
+
     float3 gEyePosW;
     float cbPerObjectPad1;
+
     float2 gRenderTargetSize;
     float2 gInvRenderTargetSize;
+
     float gNearZ;
     float gFarZ;
     float gTotalTime;
     float gDeltaTime;
+
+    // LIGHTING
+    float4 gAmbientLight;
+
+    float3 gLightDir;
+    float pad1;
+
+    float3 gLightStrength;
+    float pad2;
+};
+
+// ==========================
+cbuffer cbPerObject : register(b0)
+{
+    float4x4 gWorld;
+    float4x4 gTexTransform;
 };
 
 cbuffer cbMaterial : register(b2)
@@ -39,6 +55,7 @@ cbuffer cbMaterial : register(b2)
     float4x4 gMatTransform;
 };
 
+// ==========================
 struct VertexIn
 {
     float3 PosL : POSITION;
@@ -49,6 +66,7 @@ struct VertexIn
 struct VertexOut
 {
     float4 PosH : SV_POSITION;
+    float3 Normal : NORMAL;
     float2 TexC : TEXCOORD;
 };
 
@@ -59,6 +77,8 @@ VertexOut VS(VertexIn vin)
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosH = mul(posW, gViewProj);
 
+    vout.Normal = vin.NormalL;
+
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
     texC = mul(texC, gMatTransform);
     vout.TexC = texC.xy;
@@ -68,6 +88,18 @@ VertexOut VS(VertexIn vin)
 
 float4 PS(VertexOut pin) : SV_Target
 {
+    float3 normal = normalize(pin.Normal);
+
+    float3 lightDir = normalize(-gLightDir);
+
+    float diffuse = saturate(dot(normal, lightDir));
+
+    float3 lighting = gAmbientLight.rgb +
+                      diffuse * gLightStrength;
+
     float4 texColor = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
-    return texColor * gDiffuseAlbedo;
+
+    float3 finalColor = texColor.rgb * lighting;
+
+    return float4(finalColor, texColor.a);
 }
