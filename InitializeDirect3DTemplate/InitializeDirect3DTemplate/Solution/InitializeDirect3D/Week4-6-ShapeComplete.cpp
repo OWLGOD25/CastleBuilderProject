@@ -13,18 +13,6 @@
  *  @author Hooman Salamat
  */
 
- // Tyron was here |
- //				   |
- //			       |
- //               \ /
- //                v
- //***************************************************************************************
- // READ THIS BEFORE PLEASE 
- // the castle layout is controlled by transforms in BuildRenderItems function
- // if the shape is not showing there is probably because the drawArgs is not added in BuildShapeGeometry function
- // or the shape function wasn't declared/implemented in the GeometryGenerator
- // and if you think something is important let me know(even if its dumb)
- //***************************************************************************************
 
 #include "../../Common/d3dApp.h"
 #include "../../Common/MathHelper.h"
@@ -597,7 +585,6 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.FarZ = 1000.0f;
 	mMainPassCB.TotalTime = gt.TotalTime();
 	mMainPassCB.DeltaTime = gt.DeltaTime();
-
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
 }
@@ -852,21 +839,6 @@ void ShapesApp::BuildShadersAndInputLayout()
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
 }
-
-// Tyron was here |
-//				  |
-//			      |
-//               \ /
-//                v
-//=================================================================================================================
-// here I added the shape geometries that is needed to make the castle model
-// the new shapes are: cone, pyramid, wedge, diamond, triangular prism, and torus
-// this part of the code updates with the vertex and index offsets, and packed with vertices into the big combined vertex buffer
-// it also makes sure that we are able to create our shapes
-//=================================================================================================================
-
-
-
 
 
 // ============================================================
@@ -1256,18 +1228,6 @@ void ShapesApp::BuildFrameResources()
 	}
 }
 
-// Tyron was here |
-//				  |
-//			      |
-//               \ /
-//                v
-//==============================
-// Helper function to create a render item(makes it easier to make the castle with one liner code)
-// also added this code so that we do not have to render each item separately
-// and make the code very long but now its more efficient and cleaner
-//==============================
-
-
 
 // ============================================================
 // PART 1: RENDER ITEM HELPER
@@ -1297,17 +1257,6 @@ static std::unique_ptr<RenderItem> MakeShapeRitem(
 	return ritem;
 }
 
-// Tyron was here |
-//				  |
-//			      |
-//               \ /
-//                v
-//========================================================================================================
-// changed to make it much easier to read and create the castle.  Instead of creating each render item separately
-// , we can just call this helper function with the appropriate parameters to create each part of the castle.  
-// This makes the code much cleaner and easier to understand.
-//========================================================================================================
-
 
 // ============================================================
 // PART 1: CASTLE CONSTRUCTION
@@ -1332,13 +1281,23 @@ void ShapesApp::BuildRenderItems()
 	// Ground
 	Add("grid", "grass", XMMatrixIdentity());
 
+	// Hill base under castle (gives elevation)
+Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0.0f, -2.0f, 0.0f));
+
+// NEW: Rock formations (fake terrain depth)
+Add("box", "stone1", XMMatrixScaling(6, 4, 6) * XMMatrixTranslation(6, 0.0f, 5));
+
+Add("box", "stone1", XMMatrixScaling(5, 3, 5) * XMMatrixTranslation(-6, -0.5f, -4));
+
+Add("box", "stone1", XMMatrixScaling(4, 2, 4) * XMMatrixTranslation(3, -1.0f, -6));
+
 	// NEW: repeat the grass texture across the ground
 	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
 
 	// === Towers ===
 	float towerHeight = 4.0f;
 	float towerRadius = 2.0f;
-	float towerY = towerHeight * 0.5f;
+	float towerY = towerHeight * 0.5f + 2.0f;
 
 	auto Tower = [&](float x, float z)
 		{
@@ -1362,7 +1321,7 @@ void ShapesApp::BuildRenderItems()
 
 	// === Walls ===
 	float wallHeight = 2.5f;
-	float wallY = wallHeight * 0.5f;
+	float wallY = wallHeight * 0.5f + 2.0f;
 
 	float wallLen = 16.0f;
 	float gateWidth = 5.0f;
@@ -1402,7 +1361,16 @@ void ShapesApp::BuildRenderItems()
 	// === Gate ===
 	Add("wedge", "wood",
 		XMMatrixScaling(4, 3, 2) *
-		XMMatrixTranslation(0, 1.5f, -9.2f));
+		XMMatrixRotationY(XM_PI) *
+		XMMatrixTranslation(0, 3.5f, -9.2f));
+
+	// Bridge leading to gate
+	for (int i = 0; i < 12; i++)
+	{
+		Add("box", "stone1",
+			XMMatrixScaling(3.0f, 0.5f, 2.0f) *
+			XMMatrixTranslation(0.0f, 2.2f, -11.0f - i * 2.0f));
+	}
 
 	// === Decorations ===
 	Add("diamond", "diamond",
@@ -1461,7 +1429,7 @@ void ShapesApp::BuildRenderItems()
 			mMaterials["water"].get(),
 			"water",
 			objCBIndex++,
-			XMMatrixTranslation(0.0f, -0.02f, 0.0f)   // water height
+			XMMatrixTranslation(0.0f, -2.5f, 0.0f)   // water height
 		)
 	);
 
