@@ -80,5 +80,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Tex.hlsl" />
+    <None Include="TreeSprite.hlsl" />
   </ItemGroup>
 </Project>

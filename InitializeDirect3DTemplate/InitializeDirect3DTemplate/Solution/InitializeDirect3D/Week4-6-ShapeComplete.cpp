@@ -51,6 +51,12 @@ struct RenderItem
 	int BaseVertexLocation = 0;
 };
 
+struct TreeSpriteVertex
+{
+	DirectX::XMFLOAT3 Pos;
+	DirectX::XMFLOAT2 Size;
+};
+
 class ShapesApp : public D3DApp
 {
 public:
@@ -113,12 +119,14 @@ private:
 	std::unordered_map<std::string, std::unique_ptr<Material>> mMaterials;
 
 	std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+	std::vector<D3D12_INPUT_ELEMENT_DESC> mTreeSpriteInputLayout;
 
 	// List of all the render items.
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
 	// Render items divided by PSO.
 	std::vector<RenderItem*> mOpaqueRitems;
+	std::vector<RenderItem*> mTreeSpriteRitems;
 
 	std::vector<RenderItem*> mTransparentRitems;
 
@@ -203,10 +211,10 @@ bool ShapesApp::Initialize()
 	return true;
 }
 
-
-// ============================================================
-// here is to add the textrues
-// ============================================================
+// PART 1 - Textures
+// This section loads textures and assigns them to objects in the scene.
+// Each object (walls, ground, towers, etc.) is given a material with a texture
+// so the castle looks realistic instead of plain colors.
 void ShapesApp::LoadTextures()
 {
 	auto stone1Tex = std::make_unique<Texture>();
@@ -307,6 +315,17 @@ void ShapesApp::LoadTextures()
 		waterTex->Resource,
 		waterTex->UploadHeap));
 	mTextures["waterTex"] = std::move(waterTex);
+
+	auto treeArray2Tex = std::make_unique<Texture>();
+	treeArray2Tex->Name = "treeArray2Tex";
+	treeArray2Tex->Filename = L"Textures/treeArray2.dds";
+	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+		md3dDevice.Get(),
+		mCommandList.Get(),
+		treeArray2Tex->Filename.c_str(),
+		treeArray2Tex->Resource,
+		treeArray2Tex->UploadHeap));
+	mTextures["treeArray2Tex"] = std::move(treeArray2Tex);
 }
 
 void ShapesApp::OnResize()
@@ -393,6 +412,9 @@ void ShapesApp::Draw(const GameTimer& gt)
 
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mTransparentRitems);
+
+	mCommandList->SetPipelineState(mPSOs["treeSprites"].Get());
+	DrawRenderItems(mCommandList.Get(), mTreeSpriteRitems);
 
 	// Indicate a state transition on the resource usage.
 	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
@@ -560,6 +582,10 @@ void ShapesApp::UpdateMaterialCBs(const GameTimer& gt)
 	}
 }
 
+// PART 2 - Lighting
+// This section controls how light affects the scene.
+// It uses ambient light and directional light to make objects visible
+// and give them shading so they don’t look flat.
 void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 {
 	XMMATRIX view = XMLoadFloat4x4(&mView);
@@ -593,16 +619,16 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 
 
 // ============================================================
-// PART 3: WATER TEXTURE SRV SETUP
+// PART 3 - WATER TEXTURE SRV SETUP
 // Creates the SRV heap for all scene textures and assigns the
 // water texture to its descriptor slot so it can be sampled
 // by the shader.
 // ============================================================
 void ShapesApp::BuildDescriptorHeaps()
 {
-	// NEW: create SRV heap for 9 textures
+	// NEW: create SRV heap for 10 textures
 	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-	srvHeapDesc.NumDescriptors = 9;
+	srvHeapDesc.NumDescriptors = 10;
 	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	srvHeapDesc.NodeMask = 0;
@@ -678,6 +704,13 @@ void ShapesApp::BuildDescriptorHeaps()
 	srvDesc.Format = waterTex->GetDesc().Format;
 	srvDesc.Texture2D.MipLevels = waterTex->GetDesc().MipLevels;
 	md3dDevice->CreateShaderResourceView(waterTex.Get(), &srvDesc, hDescriptor);
+
+	auto treeArray2Tex = mTextures["treeArray2Tex"]->Resource;
+
+	hDescriptor.Offset(1, mCbvSrvUavDescriptorSize);
+	srvDesc.Format = treeArray2Tex->GetDesc().Format;
+	srvDesc.Texture2D.MipLevels = treeArray2Tex->GetDesc().MipLevels;
+	md3dDevice->CreateShaderResourceView(treeArray2Tex.Get(), &srvDesc, hDescriptor);
 
 	// CBV heap for objects + pass
 	UINT objCount = (UINT)mOpaqueRitems.size();
@@ -832,6 +865,9 @@ void ShapesApp::BuildShadersAndInputLayout()
 {
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Tex.hlsl", nullptr, "VS", "vs_5_1");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Tex.hlsl", nullptr, "PS", "ps_5_1");
+	mShaders["treeSpriteVS"] = d3dUtil::CompileShader(L"TreeSprite.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["treeSpriteGS"] = d3dUtil::CompileShader(L"TreeSprite.hlsl", nullptr, "GS", "gs_5_1");
+	mShaders["treeSpritePS"] = d3dUtil::CompileShader(L"TreeSprite.hlsl", nullptr, "PS", "ps_5_1");
 
 	// CHANGED: now using position, normal, and UVs for textures
 	mInputLayout =
@@ -840,11 +876,20 @@ void ShapesApp::BuildShadersAndInputLayout()
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
 	};
+
+	mTreeSpriteInputLayout =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+
+		{ "SIZE", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12,
+			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	};
 }
 
 
 // ============================================================
-// PART 1: CUSTOM SHAPE GEOMETRY
+// CUSTOM SHAPE GEOMETRY
 // This function creates all base and custom shapes used in the
 // castle scene, including cone, pyramid, wedge, diamond,
 // triangular prism, and torus.
@@ -1054,10 +1099,76 @@ void ShapesApp::BuildShapeGeometry()
 	geo->DrawArgs["water"] = waterSubmesh;
 
 	mGeometries[geo->Name] = std::move(geo);
+
+	// ============================================================
+    // PART 4 - TREE BILLBOARD GEOMETRY
+    // Each tree is stored as a single point with a position and size.
+    // The geometry shader will turn each point into a camera-facing quad.
+    // ============================================================
+	{
+		std::array<TreeSpriteVertex, 10> vertices =
+		{
+			TreeSpriteVertex({ XMFLOAT3(-15.0f,  0.0f, -10.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(15.0f,  0.0f, -10.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(-20.0f,  0.0f,   5.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(20.0f,  0.0f,   5.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(0.0f,  0.0f,  20.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(-20.0f,  0.0f, -15.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(20.0f,  0.0f, -15.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(-23.0f,  0.0f,   5.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(25.0f,  0.0f,   5.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(15.0f,  0.0f,  20.0f), XMFLOAT2(6.0f, 8.0f) })
+		};
+
+		std::array<std::uint16_t, 10> indices =
+		{
+			0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+		};
+
+		const UINT vbByteSize = (UINT)vertices.size() * sizeof(TreeSpriteVertex);
+		const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+		auto geo = std::make_unique<MeshGeometry>();
+		geo->Name = "treeSpritesGeo";
+
+		ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+		CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+		ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+		CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+		geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(
+			md3dDevice.Get(),
+			mCommandList.Get(),
+			vertices.data(),
+			vbByteSize,
+			geo->VertexBufferUploader);
+
+		geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(
+			md3dDevice.Get(),
+			mCommandList.Get(),
+			indices.data(),
+			ibByteSize,
+			geo->IndexBufferUploader);
+
+		geo->VertexByteStride = sizeof(TreeSpriteVertex);
+		geo->VertexBufferByteSize = vbByteSize;
+		geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+		geo->IndexBufferByteSize = ibByteSize;
+
+		SubmeshGeometry submesh;
+		submesh.IndexCount = (UINT)indices.size();
+		submesh.StartIndexLocation = 0;
+		submesh.BaseVertexLocation = 0;
+
+		geo->DrawArgs["points"] = submesh;
+
+		mGeometries["treeSpritesGeo"] = std::move(geo);
+	}
 }
 
 // ============================================================
-// PART 3: WATER MATERIAL
+// WATER MATERIAL
 // Creates scene materials, including the water material.
 // The alpha value in DiffuseAlbedo controls how transparent
 // the water appears.
@@ -1144,6 +1255,15 @@ void ShapesApp::BuildMaterials()
 	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	water->Roughness = 0.0f;
 	mMaterials["water"] = std::move(water);
+
+	auto treeArray2 = std::make_unique<Material>();
+	treeArray2->Name = "treeArray2";
+	treeArray2->MatCBIndex = 9;
+	treeArray2->DiffuseSrvHeapIndex = 9;
+	treeArray2->DiffuseAlbedo = XMFLOAT4(1, 1, 1, 1);
+	treeArray2->FresnelR0 = XMFLOAT3(0.01f, 0.01f, 0.01f);
+	treeArray2->Roughness = 0.125f;
+	mMaterials["treeArray2"] = std::move(treeArray2);
 }
 
 // ============================================================
@@ -1216,6 +1336,53 @@ void ShapesApp::BuildPSOs()
 
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
 		&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC treeSpritePsoDesc = opaquePsoDesc;
+
+	treeSpritePsoDesc.InputLayout =
+	{
+		mTreeSpriteInputLayout.data(),
+		(UINT)mTreeSpriteInputLayout.size()
+	};
+
+	treeSpritePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["treeSpriteVS"]->GetBufferPointer()),
+		mShaders["treeSpriteVS"]->GetBufferSize()
+	};
+
+	treeSpritePsoDesc.GS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["treeSpriteGS"]->GetBufferPointer()),
+		mShaders["treeSpriteGS"]->GetBufferSize()
+	};
+
+	treeSpritePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["treeSpritePS"]->GetBufferPointer()),
+		mShaders["treeSpritePS"]->GetBufferSize()
+	};
+
+	treeSpritePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	treeSpritePsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+	D3D12_RENDER_TARGET_BLEND_DESC treeBlendDesc = {};
+	treeBlendDesc.BlendEnable = true;
+	treeBlendDesc.LogicOpEnable = false;
+	treeBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	treeBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	treeBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	treeBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	treeBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	treeBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	treeBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	treeBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	treeSpritePsoDesc.BlendState.RenderTarget[0] = treeBlendDesc;
+
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(
+		&treeSpritePsoDesc,
+		IID_PPV_ARGS(&mPSOs["treeSprites"])));
 }
 
 
@@ -1289,33 +1456,6 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 
 	// NEW: repeat the grass texture across the ground
 	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
-
-	// === Trees ===
-	auto AddTree = [&](float x, float z)
-		{
-			float trunkHeight = 2.0f;
-
-			// Trunk
-			Add("cylinder", "wood",
-				XMMatrixScaling(0.3f, trunkHeight, 0.3f) *
-				XMMatrixTranslation(x, trunkHeight * 0.5f, z));
-
-			// Leaves
-			Add("cone", "grass",
-				XMMatrixScaling(1.2f, 2.5f, 1.2f) *
-				XMMatrixTranslation(x, trunkHeight + 1.5f, z));
-		};
-
-	AddTree(-15.0f, -10.0f);
-	AddTree(15.0f, -10.0f);
-	AddTree(-20.0f, 5.0f);
-	AddTree(20.0f, 5.0f);
-	AddTree(0.0f, 20.0f);
-	AddTree(-20.0f, -15.0f);
-	AddTree(20.0f, -15.0f);
-	AddTree(-23.0f, 5.0f);
-	AddTree(25.0f, 5.0f);
-	AddTree(15.0f, 20.0f);
 
 	// === Towers ===
 	float towerHeight = 4.0f;
@@ -1463,11 +1603,33 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(6.0f, 6.0f, 1.0f));
 	mTransparentRitems.push_back(mAllRitems.back().get());
 
+	// ============================================================
+// PART 4: TREE BILLBOARD RENDER ITEM
+// ============================================================
+	{
+		auto treeRitem = std::make_unique<RenderItem>();
+		XMStoreFloat4x4(&treeRitem->World, XMMatrixIdentity());
+		XMStoreFloat4x4(&treeRitem->TexTransform, XMMatrixIdentity());
+
+		treeRitem->ObjCBIndex = objCBIndex++;
+		treeRitem->Mat = mMaterials["treeArray2"].get();
+		treeRitem->Geo = mGeometries["treeSpritesGeo"].get();
+		treeRitem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+		treeRitem->IndexCount = treeRitem->Geo->DrawArgs["points"].IndexCount;
+		treeRitem->StartIndexLocation = treeRitem->Geo->DrawArgs["points"].StartIndexLocation;
+		treeRitem->BaseVertexLocation = treeRitem->Geo->DrawArgs["points"].BaseVertexLocation;
+
+		mTreeSpriteRitems.push_back(treeRitem.get());
+		mAllRitems.push_back(std::move(treeRitem));
+	}
 
 	// Finalize
 	for (auto& e : mAllRitems)
 	{
 		if (e->Mat == mMaterials["water"].get())
+			continue;
+
+		if (e->Geo == mGeometries["treeSpritesGeo"].get())
 			continue;
 
 		mOpaqueRitems.push_back(e.get());
