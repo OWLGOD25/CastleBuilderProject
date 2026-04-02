@@ -30,7 +30,7 @@ cbuffer cbPass : register(b1)
     float gTotalTime;
     float gDeltaTime;
 
-    // LIGHTING
+    // Directional/Ambient lighting
     float4 gAmbientLight;
 
     float3 gLightDir;
@@ -38,6 +38,13 @@ cbuffer cbPass : register(b1)
 
     float3 gLightStrength;
     float pad2;
+
+    // Point light
+    float3 gPointLightPosition;
+    float gPointLightFalloffStart;
+
+    float3 gPointLightStrength;
+    float gPointLightFalloffEnd;
 };
 
 // ==========================
@@ -66,6 +73,7 @@ struct VertexIn
 struct VertexOut
 {
     float4 PosH : SV_POSITION;
+    float3 PosW : POSITION1;
     float3 Normal : NORMAL;
     float2 TexC : TEXCOORD;
 };
@@ -75,6 +83,7 @@ VertexOut VS(VertexIn vin)
     VertexOut vout;
 
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
+    vout.PosW = posW.xyz;
     vout.PosH = mul(posW, gViewProj);
 
     vout.Normal = vin.NormalL;
@@ -90,12 +99,26 @@ float4 PS(VertexOut pin) : SV_Target
 {
     float3 normal = normalize(pin.Normal);
 
-    float3 lightDir = normalize(-gLightDir);
-
-    float diffuse = saturate(dot(normal, lightDir));
+    // Directional light
+    float3 dirLightDir = normalize(-gLightDir);
+    float dirDiffuse = saturate(dot(normal, dirLightDir));
 
     float3 lighting = gAmbientLight.rgb +
-                      diffuse * gLightStrength;
+                      dirDiffuse * gLightStrength;
+
+    // Point light
+    float3 toLight = gPointLightPosition - pin.PosW;
+    float distanceToLight = length(toLight);
+    float3 pointLightDir = normalize(toLight);
+
+    float pointDiffuse = saturate(dot(normal, pointLightDir));
+
+    float attenuation = saturate(
+        (gPointLightFalloffEnd - distanceToLight) /
+        (gPointLightFalloffEnd - gPointLightFalloffStart)
+    );
+
+    lighting += pointDiffuse * gPointLightStrength * attenuation;
 
     float4 texColor = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
 

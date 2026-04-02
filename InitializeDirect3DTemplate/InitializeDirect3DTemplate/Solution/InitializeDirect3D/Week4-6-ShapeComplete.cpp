@@ -11,6 +11,12 @@
  *   Hold the right mouse button down and move the mouse to zoom in and out.
  *
  *  @author Hooman Salamat
+ * 
+ * Group names:
+ * 
+ * Tyron Fajardo 
+ * 
+ * Alberto Diaz
  */
 
 
@@ -211,6 +217,7 @@ bool ShapesApp::Initialize()
 	return true;
 }
 
+
 // PART 1 - Textures
 // This section loads textures and assigns them to objects in the scene.
 // Each object (walls, ground, towers, etc.) is given a material with a texture
@@ -362,6 +369,7 @@ void ShapesApp::Update(const GameTimer& gt)
 	UpdateMainPassCB(gt);
 }
 
+
 // ============================================================
 // PART 3: WATER RENDER ORDER
 // Opaque objects are drawn first, then the water is drawn
@@ -510,7 +518,7 @@ void ShapesApp::UpdateCamera(const GameTimer& gt)
 }
 
 // ============================================================
-// PART 3: WATER ANIMATION
+// WATER ANIMATION
 // Scrolls the water material texture coordinates over time
 // to make the water look like it is moving.
 // ============================================================
@@ -553,7 +561,7 @@ void ShapesApp::UpdateObjectCBs(const GameTimer& gt)
 }
 
 // ============================================================
-// PART 3: MATERIAL BUFFER UPDATE
+// MATERIAL BUFFER UPDATE
 // Sends updated material data, including the animated water
 // material transform, to the GPU every frame.
 // ============================================================
@@ -582,6 +590,7 @@ void ShapesApp::UpdateMaterialCBs(const GameTimer& gt)
 	}
 }
 
+
 // PART 2 - Lighting
 // This section controls how light affects the scene.
 // It uses ambient light and directional light to make objects visible
@@ -608,6 +617,16 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.gAmbientLight = XMFLOAT4(0.25f, 0.2f, 0.15f, 1.0f);
 	mMainPassCB.gLightDir = XMFLOAT3(-0.6f, -0.7f, 0.3f);
 	mMainPassCB.gLightStrength = XMFLOAT3(1.0f, 0.85f, 0.6f);
+
+	mMainPassCB.gAmbientLight = XMFLOAT4(0.25f, 0.2f, 0.15f, 1.0f);
+	mMainPassCB.gLightDir = XMFLOAT3(-0.6f, -0.7f, 0.3f);
+	mMainPassCB.gLightStrength = XMFLOAT3(1.0f, 0.85f, 0.6f);
+
+	mMainPassCB.PointLightPosition = XMFLOAT3(0.0f, 5.0f, 0.0f);
+	mMainPassCB.PointLightStrength = XMFLOAT3(0.8f, 0.8f, 0.8f);
+	mMainPassCB.PointLightFalloffStart = 1.0f;
+	mMainPassCB.PointLightFalloffEnd = 20.0f;
+
 	mMainPassCB.NearZ = 1.0f;
 	mMainPassCB.FarZ = 1000.0f;
 	mMainPassCB.TotalTime = gt.TotalTime();
@@ -619,7 +638,7 @@ void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 
 
 // ============================================================
-// PART 3 - WATER TEXTURE SRV SETUP
+// WATER TEXTURE SRV SETUP
 // Creates the SRV heap for all scene textures and assigns the
 // water texture to its descriptor slot so it can be sampled
 // by the shader.
@@ -995,7 +1014,6 @@ void ShapesApp::BuildShapeGeometry()
 	torusSubmesh.StartIndexLocation = torusIndexOffset;
 	torusSubmesh.BaseVertexLocation = torusVertexOffset;
 
-	// PART 3: Water plane mesh
 	SubmeshGeometry waterSubmesh;
 	waterSubmesh.IndexCount = (UINT)water.Indices32.size();
 	waterSubmesh.StartIndexLocation = waterIndexOffset;
@@ -1099,6 +1117,7 @@ void ShapesApp::BuildShapeGeometry()
 	geo->DrawArgs["water"] = waterSubmesh;
 
 	mGeometries[geo->Name] = std::move(geo);
+
 
 	// ============================================================
     // PART 4 - TREE BILLBOARD GEOMETRY
@@ -1267,7 +1286,7 @@ void ShapesApp::BuildMaterials()
 }
 
 // ============================================================
-// PART 3: TRANSPARENCY PIPELINE STATE
+// TRANSPARENCY PIPELINE STATE
 // Creates the PSOs used for rendering.
 // Includes a transparent PSO for the water plane using
 // alpha blending (SRC_ALPHA, INV_SRC_ALPHA).
@@ -1582,6 +1601,7 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 			XMMatrixRotationY(XM_PIDIV2) *
 			XMMatrixTranslation(8.0f, wallHeight, z));
 	}
+
 
 	// ============================================================
 	// PART 3: WATER RENDER ITEM

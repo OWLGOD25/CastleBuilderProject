@@ -20,21 +20,32 @@ struct PassConstants
     DirectX::XMFLOAT4X4 InvProj = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 ViewProj = MathHelper::Identity4x4();
     DirectX::XMFLOAT4X4 InvViewProj = MathHelper::Identity4x4();
+
     DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
     float cbPerObjectPad1 = 0.0f;
+
     DirectX::XMFLOAT2 RenderTargetSize = { 0.0f, 0.0f };
     DirectX::XMFLOAT2 InvRenderTargetSize = { 0.0f, 0.0f };
+
     float NearZ = 0.0f;
     float FarZ = 0.0f;
     float TotalTime = 0.0f;
     float DeltaTime = 0.0f;
-    DirectX::XMFLOAT4 gAmbientLight;
 
-    DirectX::XMFLOAT3 gLightDir;
-    float pad1;
+    DirectX::XMFLOAT4 gAmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-    DirectX::XMFLOAT3 gLightStrength;
-    float pad2;
+    DirectX::XMFLOAT3 gLightDir = { 0.0f, -1.0f, 0.0f };
+    float pad1 = 0.0f;
+
+    DirectX::XMFLOAT3 gLightStrength = { 1.0f, 1.0f, 1.0f };
+    float pad2 = 0.0f;
+
+    // Point light
+    DirectX::XMFLOAT3 PointLightPosition = { 10.0f, 6.0f, -6.0f };
+    float PointLightFalloffStart = 1.0f;
+
+    DirectX::XMFLOAT3 PointLightStrength = { 0.8f, 0.8f, 0.8f };
+    float PointLightFalloffEnd = 20.0f;
 };
 
 // vertex data
