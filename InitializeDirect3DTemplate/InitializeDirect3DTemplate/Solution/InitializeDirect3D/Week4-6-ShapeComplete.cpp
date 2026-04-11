@@ -218,6 +218,7 @@ bool ShapesApp::Initialize()
 }
 
 
+
 // PART 1 - Textures
 // This section loads textures and assigns them to objects in the scene.
 // Each object (walls, ground, towers, etc.) is given a material with a texture
@@ -368,6 +369,7 @@ void ShapesApp::Update(const GameTimer& gt)
 	UpdateMaterialCBs(gt);   // NEW: update materials too
 	UpdateMainPassCB(gt);
 }
+
 
 
 // ============================================================
@@ -589,6 +591,7 @@ void ShapesApp::UpdateMaterialCBs(const GameTimer& gt)
 		}
 	}
 }
+
 
 
 // PART 2 - Lighting
@@ -920,7 +923,7 @@ void ShapesApp::BuildShapeGeometry()
 	GeometryGenerator geoGen;
 
 	GeometryGenerator::MeshData box = geoGen.CreateBox(1.0f, 1.0f, 1.0f, 0);
-	GeometryGenerator::MeshData grid = geoGen.CreateGrid(50.0f, 50.0f, 60, 80);
+	GeometryGenerator::MeshData grid = geoGen.CreateGrid(120.0f, 120.0f, 120, 120);
 	GeometryGenerator::MeshData sphere = geoGen.CreateSphere(0.5f, 20, 20);
 	GeometryGenerator::MeshData cylinder = geoGen.CreateCylinder(0.5f, 0.3f, 3.0f, 20, 20);
 
@@ -931,7 +934,7 @@ void ShapesApp::BuildShapeGeometry()
 	GeometryGenerator::MeshData diamond = geoGen.CreateDiamond(1.0f, 1.4f, 1.0f);
 	GeometryGenerator::MeshData triPrism = geoGen.CreateTriangularPrism(1.2f, 1.0f, 1.2f);
 	GeometryGenerator::MeshData torus = geoGen.CreateTorus(0.9f, 0.25f, 32, 16);
-	GeometryGenerator::MeshData water = geoGen.CreateGrid(80.0f, 80.0f, 60, 40);
+	GeometryGenerator::MeshData water = geoGen.CreateGrid(150.0f, 150.0f, 150, 150);
 
 	// ----------------------------
 	// Vertex offsets
@@ -1119,29 +1122,43 @@ void ShapesApp::BuildShapeGeometry()
 	mGeometries[geo->Name] = std::move(geo);
 
 
+
 	// ============================================================
     // PART 4 - TREE BILLBOARD GEOMETRY
     // Each tree is stored as a single point with a position and size.
     // The geometry shader will turn each point into a camera-facing quad.
     // ============================================================
 	{
-		std::array<TreeSpriteVertex, 10> vertices =
+		std::array<TreeSpriteVertex, 18> vertices =
 		{
-			TreeSpriteVertex({ XMFLOAT3(-15.0f,  0.0f, -10.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(15.0f,  0.0f, -10.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(-20.0f,  0.0f,   5.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(20.0f,  0.0f,   5.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(0.0f,  0.0f,  20.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(-20.0f,  0.0f, -15.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(20.0f,  0.0f, -15.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(-23.0f,  0.0f,   5.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(25.0f,  0.0f,   5.0f), XMFLOAT2(6.0f, 8.0f) }),
-			TreeSpriteVertex({ XMFLOAT3(15.0f,  0.0f,  20.0f), XMFLOAT2(6.0f, 8.0f) })
+			TreeSpriteVertex({ XMFLOAT3(-55.0f, 0.0f, -46.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(-40.0f, 0.0f, -54.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(-15.0f, 0.0f, -56.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(12.0f,  0.0f, -55.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(35.0f,  0.0f, -53.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(52.0f,  0.0f, -45.0f), XMFLOAT2(6.0f, 8.0f) }),
+
+			TreeSpriteVertex({ XMFLOAT3(-56.0f, 0.0f, -15.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(54.0f,  0.0f, -8.0f),  XMFLOAT2(6.0f, 8.0f) }),
+
+			TreeSpriteVertex({ XMFLOAT3(-57.0f, 0.0f, 18.0f),  XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(55.0f,  0.0f, 14.0f),  XMFLOAT2(6.0f, 8.0f) }),
+
+			TreeSpriteVertex({ XMFLOAT3(-53.0f, 0.0f, 42.0f),  XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(-38.0f, 0.0f, 54.0f),  XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(-8.0f,  0.0f, 56.0f),  XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(18.0f,  0.0f, 55.0f),  XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(40.0f,  0.0f, 52.0f),  XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(54.0f,  0.0f, 42.0f),  XMFLOAT2(6.0f, 8.0f) }),
+
+			TreeSpriteVertex({ XMFLOAT3(-28.0f, 0.0f, -52.0f), XMFLOAT2(6.0f, 8.0f) }),
+			TreeSpriteVertex({ XMFLOAT3(50.0f,  0.0f, 30.0f),  XMFLOAT2(6.0f, 8.0f) })
 		};
 
-		std::array<std::uint16_t, 10> indices =
+		std::array<std::uint16_t, 18> indices =
 		{
-			0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+			0, 1, 2, 3, 4, 5, 6, 7, 8,
+			9, 10, 11, 12, 13, 14, 15, 16, 17
 		};
 
 		const UINT vbByteSize = (UINT)vertices.size() * sizeof(TreeSpriteVertex);
@@ -1270,7 +1287,7 @@ void ShapesApp::BuildMaterials()
 	water->Name = "water";
 	water->MatCBIndex = 8;
 	water->DiffuseSrvHeapIndex = 8;
-	water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.7f);
+	water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.6f);
 	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	water->Roughness = 0.0f;
 	mMaterials["water"] = std::move(water);
@@ -1458,6 +1475,8 @@ void ShapesApp::BuildRenderItems()
 	MeshGeometry* geo = mGeometries["shapeGeo"].get();
 	UINT objCBIndex = 0;
 
+	float castleYOffset = -2.5f;
+
 	// CHANGED: now each object also gets a material
 	auto Add = [&](const std::string& name, const std::string& matName, const XMMATRIX& world)
 		{
@@ -1469,17 +1488,14 @@ void ShapesApp::BuildRenderItems()
 	// Ground
 	Add("grid", "grass", XMMatrixTranslation(0.0f, -2.4f, 0.0f));
 
-	// Hill base under castle (gives elevation)
-Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0.0f, -2.0f, 0.0f));
-
 
 	// NEW: repeat the grass texture across the ground
-	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(8.0f, 8.0f, 1.0f));
+	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(20.0f, 20.0f, 1.0f));
 
 	// === Towers ===
 	float towerHeight = 4.0f;
 	float towerRadius = 2.0f;
-	float towerY = towerHeight * 0.5f;
+	float towerY = towerHeight * 0.5f + castleYOffset;
 
 	auto Tower = [&](float x, float z)
 		{
@@ -1489,11 +1505,11 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 
 			Add("cone", "roof",
 				XMMatrixScaling(towerRadius * 1.2f, 4.0f, towerRadius * 1.2f) *
-				XMMatrixTranslation(x, towerHeight + 1.2f, z));
+				XMMatrixTranslation(x, towerHeight + 1.2f + castleYOffset, z));
 
 			Add("diamond", "diamond",
 				XMMatrixScaling(1.2f, 1.2f, 1.2f) *
-				XMMatrixTranslation(x, towerHeight + 7.0f, z));
+				XMMatrixTranslation(x, towerHeight + 7.0f + castleYOffset, z));
 		};
 
 	Tower(-8, -8);
@@ -1503,7 +1519,7 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 
 	// === Walls ===
 	float wallHeight = 3.0f;
-	float wallY = wallHeight * 0.5f;
+	float wallY = wallHeight * 0.5f + castleYOffset;
 
 	float wallLen = 16.0f;
 	float gateWidth = 5.0f;
@@ -1543,29 +1559,21 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 	// === Gate ===
 	Add("wedge", "wood",
 		XMMatrixScaling(4, 3, 2) *
-	    XMMatrixTranslation(0, 0.5f, -8.2f));
+		XMMatrixTranslation(0, 0.5f + castleYOffset, -8.2f));
 
 	Add("wedge", "wood",
 		XMMatrixScaling(4, 3, 2) *
 		XMMatrixRotationY(XM_PI) *
-		XMMatrixTranslation(0, 0.5f, -8.2f));
-
-	// Bridge leading to gate
-	for (int i = 0; i < 12; i++)
-	{
-		Add("box", "stone1",
-			XMMatrixScaling(3.0f, 0.5f, 2.0f) *
-			XMMatrixTranslation(0.0f, 0.5f, -9.0f - i * 2.0f));
-	}
+		XMMatrixTranslation(0, 0.5f + castleYOffset, -8.2f));
 
 	// === Decorations ===
 	Add("diamond", "diamond",
 		XMMatrixScaling(1.5f, 1.5f, 1.5f) *
-		XMMatrixTranslation(0, 7.5f, 0));
+		XMMatrixTranslation(0, 7.5f + castleYOffset, 0));
 
 	Add("torus", "torus",
 		XMMatrixScaling(1.3f, 1.3f, 1.3f) *
-		XMMatrixTranslation(0, 5.0f, -9.5f));
+		XMMatrixTranslation(0, 5.0f + castleYOffset, -9.5f));
 
 	// Battlements
 	float gateClearHalfWidth = gateWidth * 0.5f;
@@ -1576,14 +1584,14 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 
 		Add("triPrism", "triprism",
 			XMMatrixScaling(1, battH, 1) *
-			XMMatrixTranslation(x, wallHeight, -8.0f));
+			XMMatrixTranslation(x, wallHeight + castleYOffset, -8.0f));
 	}
 
 	for (float x = start; x <= end; x += step)
 	{
 		Add("triPrism", "triprism",
 			XMMatrixScaling(1, battH, 1) *
-			XMMatrixTranslation(x, wallHeight, 8.0f));
+			XMMatrixTranslation(x, wallHeight + castleYOffset, 8.0f));
 	}
 
 	for (float z = start; z <= end; z += step)
@@ -1591,7 +1599,7 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 		Add("triPrism", "triprism",
 			XMMatrixScaling(1, battH, 1) *
 			XMMatrixRotationY(XM_PIDIV2) *
-			XMMatrixTranslation(-8.0f, wallHeight, z));
+			XMMatrixTranslation(-8.0f, wallHeight + castleYOffset, z));
 	}
 
 	for (float z = start; z <= end; z += step)
@@ -1599,7 +1607,70 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 		Add("triPrism", "triprism",
 			XMMatrixScaling(1, battH, 1) *
 			XMMatrixRotationY(XM_PIDIV2) *
-			XMMatrixTranslation(8.0f, wallHeight, z));
+			XMMatrixTranslation(8.0f, wallHeight + castleYOffset, z));
+	}
+
+	const int rows = 31;
+	const int cols = 31;
+
+	int maze[rows][cols] =
+	{
+		{1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+		{1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+		{1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1},
+		{1,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,1},
+		{1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,1,1,0,1,0,1},
+		{1,0,1,0,1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0,1},
+		{1,0,1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,0,1},
+		{1,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,1,0,1,0,1},
+		{1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,0,1},
+		{1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0,0,0,0,0,1,0,1,0,0,0,1,0,1},
+		{1,1,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,0,1},
+		{1,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,1},
+		{1,0,1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1},
+		{1,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1},
+		{1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1},
+		{1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,1},
+		{1,1,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1},
+		{1,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0,1,0,0,0,1,0,0,0,1,0,1,0,1,0,1},
+		{1,0,1,0,1,1,1,0,1,1,1,0,1,0,1,0,1,0,1,1,1,0,1,1,1,0,1,0,1,0,1},
+		{1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,1},
+		{1,0,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1},
+		{1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,1},
+		{1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,0,1,0,1,1,1,0,1,1,1,0,1,0,1,0,1},
+		{1,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1},
+		{1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,0,1},
+		{1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,1},
+		{1,0,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,1,1,0,1,0,1},
+		{1,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,1,0,1},
+		{1,0,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,0,1},
+		{1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+		{1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+	};
+
+	float mazeWallScale = 3.0f;
+	float mazeWallHeight = 4.0f;
+	float mazeStartX = -45.0f;
+	float mazeStartZ = -45.0f;
+
+	for (int r = 0; r < rows; r++)
+	{
+		for (int c = 0; c < cols; c++)
+		{
+			if (maze[r][c] == 1)
+			{
+				float x = mazeStartX + c * mazeWallScale;
+				float z = mazeStartZ + r * mazeWallScale;
+
+				// leave room for the castle in the middle/front
+				if (x > -14.0f && x < 14.0f && z > -18.0f && z < 14.0f)
+					continue;
+
+				Add("box", "stone1",
+					XMMatrixScaling(mazeWallScale, mazeWallHeight, mazeWallScale) *
+					XMMatrixTranslation(x, mazeWallHeight * 0.5f - 2.0f, z));
+			}
+		}
 	}
 
 
@@ -1620,7 +1691,7 @@ Add("box", "stone1", XMMatrixScaling(28.0f, 4.0f, 28.0f) * XMMatrixTranslation(0
 		)
 	);
 
-	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(6.0f, 6.0f, 1.0f));
+	XMStoreFloat4x4(&mAllRitems.back()->TexTransform, XMMatrixScaling(14.0f, 14.0f, 1.0f));
 	mTransparentRitems.push_back(mAllRitems.back().get());
 
 	// ============================================================

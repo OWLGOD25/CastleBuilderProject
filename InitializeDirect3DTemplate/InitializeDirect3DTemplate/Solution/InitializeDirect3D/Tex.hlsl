@@ -121,8 +121,9 @@ float4 PS(VertexOut pin) : SV_Target
     lighting += pointDiffuse * gPointLightStrength * attenuation;
 
     float4 texColor = gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
+    float4 diffuseAlbedo = texColor * gDiffuseAlbedo;
 
-    float3 finalColor = texColor.rgb * lighting;
+    float3 finalColor = diffuseAlbedo.rgb * lighting;
 
-    return float4(finalColor, texColor.a);
+    return float4(finalColor, diffuseAlbedo.a);
 }
