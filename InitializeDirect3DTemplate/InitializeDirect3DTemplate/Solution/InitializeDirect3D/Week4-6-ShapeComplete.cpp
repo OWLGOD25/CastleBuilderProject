@@ -1,4 +1,5 @@
 ﻿/** @file Week4-6-ShapeComplete.cpp
+/*
  *  @brief Shape Practice Solution.
  *
  *  Place all of the scene geometry in one big vertex and index buffer.
@@ -29,6 +30,13 @@
 #include <array>
 #include <filesystem>
 #include <string>
+// Prevent Windows headers from polluting the global namespace with min/max macros
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
 
 
 using Microsoft::WRL::ComPtr;
@@ -81,6 +89,8 @@ private:
 	virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
 	virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
+	void UpdateFPSCamera(const GameTimer& gt);
+	void UpdateOrbitCamera(const GameTimer& gt);
 
 	void OnKeyboardInput(const GameTimer& gt);
 	void UpdateCamera(const GameTimer& gt);
@@ -151,6 +161,28 @@ private:
 	float mRadius = 15.0f;
 
 	POINT mLastMousePos;
+
+	//Player size for collision detection
+	float mPlayerRadius = 0.5f;
+
+	// ===== FPS CAMERA =====
+	DirectX::XMFLOAT3 mPosition = { 0.0f, 2.0f, -10.0f };
+	float mYaw = 0.0f;
+	float mPitch = 0.0f;
+
+	float mMoveSpeed = 10.0f;
+	float mMouseSensitivity = 0.002f;
+
+	bool mUseFPS = true;
+
+	// ===== COLLISION =====
+	struct BoundingBox
+	{
+		DirectX::XMFLOAT3 Min;
+		DirectX::XMFLOAT3 Max;
+	};
+
+	std::vector<BoundingBox> mMazeColliders;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -465,30 +497,50 @@ void ShapesApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void ShapesApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-	if ((btnState & MK_LBUTTON) != 0)
+	if (mUseFPS)
 	{
-		// Make each pixel correspond to a quarter of a degree.
-		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - mLastMousePos.x));
-		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - mLastMousePos.y));
+		POINT center;
+		RECT rect;
 
-		// Update angles based on input to orbit camera around box.
-		mTheta += dx;
-		mPhi += dy;
+		GetClientRect(mhMainWnd, &rect);
 
-		// Restrict the angle mPhi.
-		mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
+		center.x = (rect.left + rect.right) / 2;
+		center.y = (rect.top + rect.bottom) / 2;
+
+		POINT screenCenter = center;
+		ClientToScreen(mhMainWnd, &screenCenter);
+
+		float dx = (x - center.x) * mMouseSensitivity;
+		float dy = (y - center.y) * mMouseSensitivity;
+
+		mYaw += dx;
+		mPitch -= dy;
+
+		mPitch = MathHelper::Clamp(mPitch, -XM_PIDIV2 + 0.1f, XM_PIDIV2 - 0.1f);
+
+		SetCursorPos(screenCenter.x, screenCenter.y);
 	}
-	else if ((btnState & MK_RBUTTON) != 0)
+	else
 	{
-		// Make each pixel correspond to 0.2 unit in the scene.
-		float dx = 0.05f * static_cast<float>(x - mLastMousePos.x);
-		float dy = 0.05f * static_cast<float>(y - mLastMousePos.y);
+		// Orbit camera (your original behavior)
+		if ((btnState & MK_LBUTTON) != 0)
+		{
+			float dx = XMConvertToRadians(0.25f * (x - mLastMousePos.x));
+			float dy = XMConvertToRadians(0.25f * (y - mLastMousePos.y));
 
-		// Update the camera radius based on input.
-		mRadius += dx - dy;
+			mTheta += dx;
+			mPhi += dy;
 
-		// Restrict the radius.
-		mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
+			mPhi = MathHelper::Clamp(mPhi, 0.1f, XM_PI - 0.1f);
+		}
+		else if ((btnState & MK_RBUTTON) != 0)
+		{
+			float dx = 0.05f * (x - mLastMousePos.x);
+			float dy = 0.05f * (y - mLastMousePos.y);
+
+			mRadius += dx - dy;
+			mRadius = MathHelper::Clamp(mRadius, 5.0f, 150.0f);
+		}
 	}
 
 	mLastMousePos.x = x;
@@ -497,26 +549,180 @@ void ShapesApp::OnMouseMove(WPARAM btnState, int x, int y)
 
 void ShapesApp::OnKeyboardInput(const GameTimer& gt)
 {
-	if (GetAsyncKeyState('1') & 0x8000)
-		mIsWireframe = true;
+	using namespace DirectX;
+
+	float dt = gt.DeltaTime();
+
+	// ===== TOGGLE CAMERA (press C) =====
+	static bool keyPressed = false;
+	if (GetAsyncKeyState('C') & 0x8000)
+	{
+		if (!keyPressed)
+		{
+			mUseFPS = !mUseFPS;
+			keyPressed = true;
+		}
+	}
 	else
-		mIsWireframe = false;
+	{
+		keyPressed = false;
+	}
+
+	if (mUseFPS)
+	{
+		ShowCursor(FALSE); // hide cursor
+	}
+	else
+	{
+		ShowCursor(TRUE);  // show cursor
+	}
+
+	// ===== ONLY MOVE IN FPS MODE =====
+	if (!mUseFPS) return;
+
+	XMVECTOR forward = XMVectorSet(
+		sinf(mYaw),
+		0.0f,
+		cosf(mYaw),
+		0.0f
+	);
+
+	XMVECTOR right = XMVectorSet(
+		cosf(mYaw),
+		0.0f,
+		-sinf(mYaw),
+		0.0f
+	);
+
+	XMVECTOR pos = XMLoadFloat3(&mPosition);
+
+	if (GetAsyncKeyState('W') & 0x8000)
+		pos += forward * mMoveSpeed * dt;
+
+	if (GetAsyncKeyState('S') & 0x8000)
+		pos -= forward * mMoveSpeed * dt;
+
+	if (GetAsyncKeyState('A') & 0x8000)
+		pos -= right * mMoveSpeed * dt;
+
+	if (GetAsyncKeyState('D') & 0x8000)
+		pos += right * mMoveSpeed * dt;
+
+
+	// ===== COLLISION =====
+	XMFLOAT3 newPos;
+	XMStoreFloat3(&newPos, pos);
+
+	// ===== COLLISION (SLIDING SYSTEM) =====
+
+// ---- X AXIS ----
+	DirectX::XMFLOAT3 testPosX = mPosition;
+	testPosX.x = newPos.x;
+
+	bool collideX = false;
+
+	for (const auto& box : mMazeColliders)
+	{
+		float closestX = std::max(box.Min.x, std::min(testPosX.x, box.Max.x));
+		float closestZ = std::max(box.Min.z, std::min(testPosX.z, box.Max.z));
+
+		float dx = testPosX.x - closestX;
+		float dz = testPosX.z - closestZ;
+
+		if (dx * dx + dz * dz < mPlayerRadius * mPlayerRadius)
+		{
+			collideX = true;
+			break;
+		}
+	}
+
+	if (!collideX)
+	{
+		mPosition.x = newPos.x;
+	}
+
+
+	// ---- Z AXIS ----
+	DirectX::XMFLOAT3 testPosZ = mPosition;
+	testPosZ.z = newPos.z;
+
+	bool collideZ = false;
+
+	for (const auto& box : mMazeColliders)
+	{
+		float closestX = std::max(box.Min.x, std::min(testPosZ.x, box.Max.x));
+		float closestZ = std::max(box.Min.z, std::min(testPosZ.z, box.Max.z));
+
+		float dx = testPosZ.x - closestX;
+		float dz = testPosZ.z - closestZ;
+
+		if (dx * dx + dz * dz < mPlayerRadius * mPlayerRadius)
+		{
+			collideZ = true;
+			break;
+		}
+	}
+
+	if (!collideZ)
+	{
+		mPosition.z = newPos.z;
+	}
 }
+
 
 void ShapesApp::UpdateCamera(const GameTimer& gt)
 {
-	// Convert Spherical to Cartesian coordinates.
+	if (mUseFPS)
+		UpdateFPSCamera(gt);
+	else
+		UpdateOrbitCamera(gt);
+}
+void ShapesApp::UpdateFPSCamera(const GameTimer& gt)
+{
+	using namespace DirectX;
+
+	XMVECTOR pos = XMLoadFloat3(&mPosition);
+
+	XMVECTOR forward = XMVectorSet(
+		cosf(mPitch) * sinf(mYaw),
+		sinf(mPitch),
+		cosf(mPitch) * cosf(mYaw),
+		0.0f
+	);
+
+	XMVECTOR target = pos + forward;
+
+	XMMATRIX view = XMMatrixLookAtLH(pos, target, XMVectorSet(0, 1, 0, 0));
+	XMStoreFloat4x4(&mView, view);
+}
+
+void ShapesApp::UpdateOrbitCamera(const GameTimer& gt)
+{
+	using namespace DirectX;
+
 	mEyePos.x = mRadius * sinf(mPhi) * cosf(mTheta);
 	mEyePos.z = mRadius * sinf(mPhi) * sinf(mTheta);
 	mEyePos.y = mRadius * cosf(mPhi);
 
-	// Build the view matrix.
 	XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
 	XMVECTOR target = XMVectorZero();
 	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
 	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
 	XMStoreFloat4x4(&mView, view);
+}
+
+void CenterCursor(HWND hwnd)
+{
+	RECT rect;
+	GetClientRect(hwnd, &rect);
+
+	POINT center;
+	center.x = (rect.left + rect.right) / 2;
+	center.y = (rect.top + rect.bottom) / 2;
+
+	ClientToScreen(hwnd, &center);
+	SetCursorPos(center.x, center.y);
 }
 
 // ============================================================
@@ -1669,6 +1875,16 @@ void ShapesApp::BuildRenderItems()
 				Add("box", "stone1",
 					XMMatrixScaling(mazeWallScale, mazeWallHeight, mazeWallScale) *
 					XMMatrixTranslation(x, mazeWallHeight * 0.5f - 2.0f, z));
+
+				// Add collider for this maze wall
+				ShapesApp::BoundingBox bbox;
+				float halfX = 0.5f * mazeWallScale;
+				float halfY = 0.5f * mazeWallHeight;
+				float halfZ = 0.5f * mazeWallScale;
+				float centerY = mazeWallHeight * 0.5f - 2.0f;
+				bbox.Min = DirectX::XMFLOAT3(x - halfX, centerY - halfY, z - halfZ);
+				bbox.Max = DirectX::XMFLOAT3(x + halfX, centerY + halfY, z + halfZ);
+				mMazeColliders.push_back(bbox);
 			}
 		}
 	}
