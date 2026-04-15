@@ -166,7 +166,7 @@ private:
 	float mPlayerRadius = 0.5f;
 
 	// ===== FPS CAMERA =====
-	DirectX::XMFLOAT3 mPosition = { 0.0f, 2.0f, -10.0f };
+	DirectX::XMFLOAT3 mPosition = { 0.0f, 0.5f, -52.0f };
 	float mYaw = 0.0f;
 	float mPitch = 0.0f;
 
@@ -373,7 +373,7 @@ void ShapesApp::OnResize()
 	D3DApp::OnResize();
 
 	// The window resized, so update the aspect ratio and recompute the projection matrix.
-	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
+	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
 }
 
@@ -570,14 +570,13 @@ void ShapesApp::OnKeyboardInput(const GameTimer& gt)
 
 	if (mUseFPS)
 	{
-		ShowCursor(FALSE); // hide cursor
+		ShowCursor(FALSE);
 	}
 	else
 	{
-		ShowCursor(TRUE);  // show cursor
+		ShowCursor(TRUE);
 	}
 
-	// ===== ONLY MOVE IN FPS MODE =====
 	if (!mUseFPS) return;
 
 	XMVECTOR forward = XMVectorSet(
@@ -608,15 +607,18 @@ void ShapesApp::OnKeyboardInput(const GameTimer& gt)
 	if (GetAsyncKeyState('D') & 0x8000)
 		pos += right * mMoveSpeed * dt;
 
-
 	// ===== COLLISION =====
 	XMFLOAT3 newPos;
 	XMStoreFloat3(&newPos, pos);
 
-	// ===== COLLISION (SLIDING SYSTEM) =====
+	// Castle collision bounds
+	float castleMinX = -9.0f;
+	float castleMaxX = 9.0f;
+	float castleMinZ = -9.0f;
+	float castleMaxZ = 9.0f;
 
-// ---- X AXIS ----
-	DirectX::XMFLOAT3 testPosX = mPosition;
+	// ---- X AXIS ----
+	XMFLOAT3 testPosX = mPosition;
 	testPosX.x = newPos.x;
 
 	bool collideX = false;
@@ -638,12 +640,24 @@ void ShapesApp::OnKeyboardInput(const GameTimer& gt)
 
 	if (!collideX)
 	{
+		float closestX = std::max(castleMinX, std::min(testPosX.x, castleMaxX));
+		float closestZ = std::max(castleMinZ, std::min(testPosX.z, castleMaxZ));
+
+		float dx = testPosX.x - closestX;
+		float dz = testPosX.z - closestZ;
+
+		if (dx * dx + dz * dz < mPlayerRadius * mPlayerRadius)
+		{
+			collideX = true;
+		}
+	}
+
+	if (!collideX)
+	{
 		mPosition.x = newPos.x;
 	}
 
-
-	// ---- Z AXIS ----
-	DirectX::XMFLOAT3 testPosZ = mPosition;
+	XMFLOAT3 testPosZ = mPosition;
 	testPosZ.z = newPos.z;
 
 	bool collideZ = false;
@@ -660,6 +674,20 @@ void ShapesApp::OnKeyboardInput(const GameTimer& gt)
 		{
 			collideZ = true;
 			break;
+		}
+	}
+
+	if (!collideZ)
+	{
+		float closestX = std::max(castleMinX, std::min(testPosZ.x, castleMaxX));
+		float closestZ = std::max(castleMinZ, std::min(testPosZ.z, castleMaxZ));
+
+		float dx = testPosZ.x - closestX;
+		float dz = testPosZ.z - closestZ;
+
+		if (dx * dx + dz * dz < mPlayerRadius * mPlayerRadius)
+		{
+			collideZ = true;
 		}
 	}
 
@@ -1823,7 +1851,7 @@ void ShapesApp::BuildRenderItems()
 	{
 		{1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
 		{1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-		{1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1},
+		{1,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,0,1},
 		{1,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,1},
 		{1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,1,1,0,1,0,1,1,1,0,1,0,1},
 		{1,0,1,0,1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,1,0,1},
